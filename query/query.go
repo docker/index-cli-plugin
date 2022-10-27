@@ -19,6 +19,7 @@ package query
 import (
 	_ "embed"
 	"fmt"
+	"github.com/docker/index-cli-plugin/internal"
 	"net/http"
 	"strings"
 
@@ -44,8 +45,11 @@ var enabledSkillsQuery string
 //go:embed package_cves.edn
 var packageCvesQuery string
 
+//go:embed package_cve.edn
+var packageCveQuery string
+
 func CheckAuth(workspace string, apiKey string) (bool, error) {
-	resp, err := query(enabledSkillsQuery, workspace, apiKey)
+	resp, err := query(enabledSkillsQuery, "auth_check", workspace, apiKey)
 	if err != nil {
 		return false, errors.Wrap(err, "failed to check auth")
 	}
@@ -55,45 +59,45 @@ func CheckAuth(workspace string, apiKey string) (bool, error) {
 	return true, nil
 }
 
-func QueryCves(sb *sbom.Sbom, workspace string, apiKey string) (*[]sbom.Cve, error) {
+func QueryCves(sb *sbom.Sbom, cve string, workspace string, apiKey string) (*[]sbom.Cve, error) {
 	pkgs := make([]string, 0)
 	for _, p := range sb.Artifacts {
 		pkgs = append(pkgs, fmt.Sprintf(`["%s" "%s" "%s" "%s"]`, p.Purl, p.Type, p.Version, sbom.ToAdvisoryUrl(p)))
 	}
 
-	resp, err := query(fmt.Sprintf(packageCvesQuery, strings.Join(pkgs, " ")), workspace, apiKey)
-	if workspace == "" || apiKey == "" {
-		var result QueryResult
-		err = edn.NewDecoder(resp.Body).Decode(&result)
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to unmarshal response")
-		}
-		if len(result.Query.Data) > 0 {
-			skill.Log.Infof("Detected %d vulnerabilities", len(result.Query.Data[0].Cves))
-			return &result.Query.Data[0].Cves, nil
-		} else {
-			return nil, nil
-		}
+	var q, name string
+	if cve == "" {
+		q = fmt.Sprintf(packageCvesQuery, strings.Join(pkgs, " "))
+		name = "cves_query"
 	} else {
-		var cves []CveResult
-		err = edn.NewDecoder(resp.Body).Decode(&cves)
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to unmarshal response")
+		q = fmt.Sprintf(packageCveQuery, cve, strings.Join(pkgs, " "))
+		name = "cve_query"
+	}
+	resp, err := query(q, name, workspace, apiKey)
+	var result QueryResult
+	err = edn.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to unmarshal response")
+	}
+	if len(result.Query.Data) > 0 {
+		if len(result.Query.Data) == 1 {
+			skill.Log.Infof("Detected %d vulnerability", len(result.Query.Data[0].Cves))
+		} else {
+			skill.Log.Infof("Detected %d vulnerabilities", len(result.Query.Data[0].Cves))
 		}
-		skill.Log.Infof("Detected %d vulnerabilities", len(cves[0].Cves))
-		return &cves[0].Cves, nil
+		return &result.Query.Data[0].Cves, nil
+	} else {
+		return nil, nil
 	}
 }
 
-func query(query string, workspace string, apiKey string) (*http.Response, error) {
-	url := "https://api.dso.docker.com/datalog/team/" + workspace
+func query(query string, name string, workspace string, apiKey string) (*http.Response, error) {
+	url := fmt.Sprintf("https://api.dso.docker.com/datalog/team/%s/queries", workspace)
 	if workspace == "" || apiKey == "" {
 		url = "https://api.dso.docker.com/datalog/shared-vulnerability/queries"
-		query = fmt.Sprintf(`{:queries [{:name "query" :query %s}]}`, query)
-	} else {
-		query = fmt.Sprintf(`{:query %s}`, query)
-	}
 
+	}
+	query = fmt.Sprintf(`{:queries [{:name "query" :query %s}]}`, query)
 	client := &http.Client{}
 	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(query))
 	if err != nil {
@@ -103,6 +107,8 @@ func query(query string, workspace string, apiKey string) (*http.Response, error
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
 	req.Header.Set("Content-Type", "application/edn")
+	req.Header.Set("X-Docker-Client", fmt.Sprintf("index-cli-plugin/%s", internal.FromBuild().Version))
+	req.Header.Set("X-Docker-Query", name)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create http client")
 	}

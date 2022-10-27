@@ -1,3 +1,5 @@
+**Note:** This repository is not an officially supported Docker project.
+
 # `docker index` Docker CLI plugin
 
 Docker CLI plugin to create image SBOMs as well as analyze packages for known vulnerabilities 
@@ -21,12 +23,25 @@ Alternatively, you can install manually by following these steps:
 
 ### `docker index sbom`
 
-To detect base images for local or remote images, use the following command:
+To create an SBOM for a local or remote image, run the following command:
 
 ```shell
 $ docker index sbom --image <IMAGE> 
 ```
 
-`<IMAGE>` can either be a local image id or fully qualified image name from a remote registry.
+* `--image <IMAGE>` can either be a local image id or fully qualified image name from a remote registry
+* `--oci-dir <DIR>` can point to a local image in OCI directory format
+* `--output <OUTPUT FILE>` allows to store the generated SBOM in a local file
+* `--include-cves` will include all detected CVEs in generated output
 
-`--output <OUTPUT FILE>` allows to store the generated SBOM in a local file.
+### `docker index cve`
+
+To detect base images for local or remote images, use the following command:
+
+```shell
+$ docker index cve --image <IMAGE> CVE_ID 
+```
+
+* `--image <IMAGE>` can either be a local image id or fully qualified image name from a remote registry
+* `--oci-dir <DIR>` can point to a local image in OCI directory format
+* `CVE_ID` can be any known CVE id
