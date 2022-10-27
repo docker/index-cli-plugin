@@ -8,7 +8,8 @@ require (
 	github.com/anchore/syft v0.59.0
 	github.com/aquasecurity/trivy v0.30.4
 	github.com/atomist-skills/go-skill v0.0.6-0.20221003172518-c3d268e1f3f1
-	github.com/docker/cli v20.10.17+incompatible
+	github.com/docker/cli v20.10.21+incompatible
+	github.com/docker/docker v20.10.17+incompatible
 	github.com/google/go-containerregistry v0.11.0
 	github.com/google/uuid v1.3.0
 	github.com/moby/term v0.0.0-20220808134915-39b0c02b01ae
@@ -63,7 +64,6 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dimchansky/utfbom v1.1.1 // indirect
 	github.com/docker/distribution v2.8.1+incompatible // indirect
-	github.com/docker/docker v20.10.17+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.6.4 // indirect
 	github.com/docker/go v1.5.1-1.0.20160303222718-d30aec9fd63c // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
@@ -204,4 +204,9 @@ require (
 	modernc.org/sqlite v1.17.3 // indirect
 	modernc.org/strutil v1.1.1 // indirect
 	modernc.org/token v1.0.0 // indirect
+)
+
+replace (
+	github.com/docker/cli => github.com/docker/cli v20.10.3-0.20220803220330-418ca3b4d46f+incompatible // master (v22.06-dev)
+	github.com/docker/docker => github.com/docker/docker v20.10.3-0.20220720171342-a60b458179aa+incompatible // 22.06 branch (v22.06-dev)
 )

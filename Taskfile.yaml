@@ -6,7 +6,7 @@ vars:
 tasks:
   go:build:
     cmds:
-      - go build -ldflags="-w -s -X 'github.com/docker/index-cli-plugin/internal.version={{.GIT_COMMIT}}'"
+      - go build -o docker-index -ldflags="-w -s -X 'github.com/docker/index-cli-plugin/internal.version={{.GIT_COMMIT}}'"
     env:
       CGO_ENABLED: 0
     vars:
@@ -17,7 +17,7 @@ tasks:
     deps: [go:build]
     cmds:
       - mkdir -p ~/.docker/cli-plugins
-      - install index-cli-plugin ~/.docker/cli-plugins/docker-index
+      - install docker-index ~/.docker/cli-plugins/docker-index
 
   go:fmt:
     cmds:
@@ -28,6 +28,10 @@ tasks:
   go:release:
     cmds:
       - goreleaser release --rm-dist
+
+  go:snapshot:
+    cmds:
+      - goreleaser release --snapshot --rm-dist
 
   docker:build:
     cmds:

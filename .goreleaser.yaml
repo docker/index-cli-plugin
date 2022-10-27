@@ -1,3 +1,5 @@
+project_name: docker-index
+
 release:
   prerelease: auto
   draft: true

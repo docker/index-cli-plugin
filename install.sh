@@ -18,11 +18,11 @@
 
 set -u
 
-PROJECT_NAME="index-cli-plugin"
+PROJECT_NAME="docker-index"
 OWNER=docker
-REPO="${PROJECT_NAME}"
+REPO="index-cli-plugin"
 GITHUB_DOWNLOAD_PREFIX=https://github.com/${OWNER}/${REPO}/releases/download
-INSTALL_SH_BASE_URL=https://raw.githubusercontent.com/${OWNER}/${PROJECT_NAME}
+INSTALL_SH_BASE_URL=https://raw.githubusercontent.com/${OWNER}/${REPO}
 BINARY="docker-index"
 DOCKER_HOME=${DOCKER_HOME:-~/.docker}
 DEFAULT_INSTALL_DIR=${DOCKER_HOME}/cli-plugins

@@ -7,26 +7,19 @@ using the Atomist data plane.
 
 ## Installation
 
-To install, run the following command in your terminal:
+You can install manually by following these steps:
 
-```shell
-$ curl -sSfL https://raw.githubusercontent.com/docker/index-cli-plugin/main/install.sh | sh -s --
-```
-
-Alternatively, you can install manually by following these steps:
-
-* Download the plugin binary from the [release page](https://github.com/docker/index-cli-plugin/releases/latest)
+* Download the binary from the [release page](https://github.com/docker/index-cli-plugin/releases/latest)
 * Unzip the archive
-* Copy/move the binary into `$HOME/.docker/cli-plugins`
 
 ## Usage
 
-### `docker index sbom`
+### `docker-index sbom`
 
 To create an SBOM for a local or remote image, run the following command:
 
 ```shell
-$ docker index sbom --image <IMAGE> 
+$ docker-index sbom --image <IMAGE> 
 ```
 
 * `--image <IMAGE>` can either be a local image id or fully qualified image name from a remote registry
@@ -34,12 +27,12 @@ $ docker index sbom --image <IMAGE>
 * `--output <OUTPUT FILE>` allows to store the generated SBOM in a local file
 * `--include-cves` will include all detected CVEs in generated output
 
-### `docker index cve`
+### `docker-index cve`
 
 To detect base images for local or remote images, use the following command:
 
 ```shell
-$ docker index cve --image <IMAGE> CVE_ID 
+$ docker-index cve --image <IMAGE> CVE_ID 
 ```
 
 * `--image <IMAGE>` can either be a local image id or fully qualified image name from a remote registry

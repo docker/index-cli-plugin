@@ -25,9 +25,11 @@ import (
 	"strings"
 
 	"github.com/atomist-skills/go-skill"
+	"github.com/docker/cli/cli"
 	"github.com/docker/cli/cli-plugins/manager"
 	"github.com/docker/cli/cli-plugins/plugin"
 	"github.com/docker/cli/cli/command"
+	cliflags "github.com/docker/cli/cli/flags"
 	"github.com/docker/index-cli-plugin/internal"
 	"github.com/docker/index-cli-plugin/query"
 	"github.com/docker/index-cli-plugin/sbom"
@@ -37,211 +39,253 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func main() {
-	plugin.Run(func(dockerCli command.Cli) *cobra.Command {
-		skill.Log.SetOutput(os.Stderr)
-		config := dockerCli.ConfigFile()
+func runStandalone(cmd *command.DockerCli) error {
+	if err := cmd.Initialize(cliflags.NewClientOptions()); err != nil {
+		return err
+	}
+	rootCmd := newRootCmd(os.Args[0], false, cmd)
+	return rootCmd.Execute()
+}
 
-		var (
-			output, ociDir, image, workspace string
-			apiKeyStdin, includeCves         bool
-		)
+func runPlugin(cmd *command.DockerCli) error {
+	rootCmd := newRootCmd("index", true, cmd)
+	return plugin.RunPlugin(cmd, rootCmd, manager.Metadata{
+		SchemaVersion: "0.1.0",
+		Vendor:        "Docker Inc.",
+		Version:       internal.FromBuild().Version,
+	})
+}
 
-		logoutCommand := &cobra.Command{
-			Use:   "logout",
-			Short: "Remove Atomist workspace authentication",
-			RunE: func(cmd *cobra.Command, _ []string) error {
-				config.SetPluginConfig("index", "workspace", "")
-				config.SetPluginConfig("index", "api-key", "")
+func newRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Command {
+	cmd := &cobra.Command{
+		Short: "Docker Index",
+		Long:  `Index Docker images, create SBOMs and detect CVEs`,
+		Use:   name,
+	}
+	if isPlugin {
+		cmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+			return plugin.PersistentPreRunE(cmd, args)
+		}
+	} else {
+		cmd.SilenceUsage = true
+		cmd.SilenceErrors = true
+		cmd.TraverseChildren = true
+		cmd.DisableFlagsInUseLine = true
+		cli.DisableFlagsInUseLine(cmd)
+	}
+
+	config := dockerCli.ConfigFile()
+
+	var (
+		output, ociDir, image, workspace string
+		apiKeyStdin, includeCves         bool
+	)
+
+	logoutCommand := &cobra.Command{
+		Use:   "logout",
+		Short: "Remove Atomist workspace authentication",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			config.SetPluginConfig("index", "workspace", "")
+			config.SetPluginConfig("index", "api-key", "")
+			return config.Save()
+		},
+	}
+
+	loginCommand := &cobra.Command{
+		Use:   "login WORKSPACE",
+		Short: "Authenticate with Atomist workspace",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			workspace, err := readWorkspace(args, dockerCli)
+			if err != nil {
+				return err
+			}
+			apiKey, err := readApiKey(apiKeyStdin, dockerCli)
+			if err != nil {
+				return err
+			}
+			if valid, err := query.CheckAuth(workspace, apiKey); err == nil && valid {
+				skill.Log.Info("Login successful")
+				config.SetPluginConfig("index", "workspace", workspace)
+				config.SetPluginConfig("index", "api-key", apiKey)
 				return config.Save()
-			},
-		}
+			} else {
+				return errors.New("Login failed")
+			}
+		},
+	}
+	loginCommandFlags := loginCommand.Flags()
+	loginCommandFlags.BoolVar(&apiKeyStdin, "api-key-stdin", false, "Atomist API key")
 
-		loginCommand := &cobra.Command{
-			Use:   "login WORKSPACE",
-			Short: "Authenticate with Atomist workspace",
-			RunE: func(cmd *cobra.Command, args []string) error {
-				workspace, err := readWorkspace(args, dockerCli)
-				if err != nil {
-					return err
-				}
-				apiKey, err := readApiKey(apiKeyStdin, dockerCli)
-				if err != nil {
-					return err
-				}
-				if valid, err := query.CheckAuth(workspace, apiKey); err == nil && valid {
-					skill.Log.Info("Login successful")
-					config.SetPluginConfig("index", "workspace", workspace)
-					config.SetPluginConfig("index", "api-key", apiKey)
-					return config.Save()
-				} else {
-					return errors.New("Login failed")
-				}
-			},
-		}
-		loginCommandFlags := loginCommand.Flags()
-		loginCommandFlags.BoolVar(&apiKeyStdin, "api-key-stdin", false, "Atomist API key")
+	sbomCommand := &cobra.Command{
+		Use:   "sbom [OPTIONS]",
+		Short: "Write SBOM file",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var err error
+			var sb *sbom.Sbom
 
-		sbomCommand := &cobra.Command{
-			Use:   "sbom [OPTIONS]",
-			Short: "Write SBOM file",
-			RunE: func(cmd *cobra.Command, args []string) error {
-				var err error
-				var sb *sbom.Sbom
-
-				if ociDir == "" {
-					sb, _, err = sbom.IndexImage(image, dockerCli.Client())
-				} else {
-					sb, _, err = sbom.IndexPath(ociDir, image)
-				}
-				if err != nil {
-					return err
-				}
-				if includeCves {
-					workspace, _ := config.PluginConfig("index", "workspace")
-					apiKey, _ := config.PluginConfig("index", "api-key")
-					cves, err := query.QueryCves(sb, "", workspace, apiKey)
-					if err != nil {
-						return err
-					}
-					sb.Vulnerabilities = *cves
-				}
-
-				js, err := json.MarshalIndent(sb, "", "  ")
-				if err != nil {
-					return err
-				}
-				if output != "" {
-					_ = os.WriteFile(output, js, 0644)
-					skill.Log.Infof("SBOM written to %s", output)
-				} else {
-					os.Stdout.WriteString(string(js) + "\n")
-				}
-				return nil
-			},
-		}
-		sbomCommandFlags := sbomCommand.Flags()
-		sbomCommandFlags.StringVarP(&output, "output", "o", "", "Location path to write SBOM to")
-		sbomCommandFlags.StringVarP(&image, "image", "i", "", "Image reference to index")
-		sbomCommandFlags.StringVarP(&ociDir, "oci-dir", "d", "", "Path to image in OCI format")
-		sbomCommandFlags.BoolVarP(&includeCves, "include-cves", "c", false, "Include package CVEs")
-
-		uploadCommand := &cobra.Command{
-			Use:   "upload [OPTIONS]",
-			Short: "Upload SBOM",
-			RunE: func(cmd *cobra.Command, args []string) error {
-				var err error
-
-				if workspace == "" {
-					workspace, _ = config.PluginConfig("index", "workspace")
-					if workspace == "" {
-						workspace, err = readWorkspace(args, dockerCli)
-						if err != nil {
-							return err
-						}
-					}
-				}
-
-				apiKey, _ := config.PluginConfig("index", "api-key")
-				if apiKey == "" {
-					apiKey, err = readApiKey(apiKeyStdin, dockerCli)
-					if err != nil {
-						return err
-					}
-				}
-
-				var sb *sbom.Sbom
-				var img *v1.Image
-				if ociDir == "" {
-					sb, img, err = sbom.IndexImage(image, dockerCli.Client())
-				} else {
-					sb, img, err = sbom.IndexPath(ociDir, image)
-				}
-				if err != nil {
-					return err
-				}
-				err = sbom.UploadSbom(sb, img, workspace, apiKey)
-
-				return nil
-			},
-		}
-		uploadCommandFlags := uploadCommand.Flags()
-		uploadCommandFlags.StringVar(&image, "image", "", "Image reference to index")
-		uploadCommandFlags.StringVar(&ociDir, "oci-dir", "", "Path to image in OCI format")
-		uploadCommandFlags.StringVar(&workspace, "workspace", "", "Atomist workspace")
-		uploadCommandFlags.BoolVar(&apiKeyStdin, "api-key-stdin", false, "Atomist API key")
-
-		cveCommand := &cobra.Command{
-			Use:   "cve [OPTIONS] CVE_ID",
-			Short: "Check if image is vulnerable to given CVE",
-			RunE: func(cmd *cobra.Command, args []string) error {
-				if len(args) != 1 {
-					return fmt.Errorf(`"docker index cve" requires exactly 1 argument`)
-				}
-				cve := args[0]
-				var err error
-				var sb *sbom.Sbom
-
-				if ociDir == "" {
-					sb, _, err = sbom.IndexImage(image, dockerCli.Client())
-				} else {
-					sb, _, err = sbom.IndexPath(ociDir, image)
-				}
-				if err != nil {
-					return err
-				}
+			if ociDir == "" {
+				sb, _, err = sbom.IndexImage(image, dockerCli.Client())
+			} else {
+				sb, _, err = sbom.IndexPath(ociDir, image)
+			}
+			if err != nil {
+				return err
+			}
+			if includeCves {
 				workspace, _ := config.PluginConfig("index", "workspace")
 				apiKey, _ := config.PluginConfig("index", "api-key")
-				cves, err := query.QueryCves(sb, cve, workspace, apiKey)
+				cves, err := query.QueryCves(sb, "", workspace, apiKey)
 				if err != nil {
 					return err
 				}
+				sb.Vulnerabilities = *cves
+			}
 
-				if len(*cves) > 0 {
-					for _, c := range *cves {
-						skill.Log.Warnf("Detected %s at", cve)
-						skill.Log.Warnf("")
-						purl := c.Purl
-						for _, p := range sb.Artifacts {
-							if p.Purl == purl {
-								skill.Log.Warnf("  %s", p.Purl)
-								loc := p.Locations[0]
-								for i, l := range sb.Source.Image.Config.RootFS.DiffIDs {
-									if l.String() == loc.DiffId {
-										h := sb.Source.Image.Config.History[i]
-										skill.Log.Warnf("    ")
-										skill.Log.Warnf("    Instruction: %s", h.CreatedBy)
-										skill.Log.Warnf("    Layer %d: %s", i, loc.Digest)
-									}
+			js, err := json.MarshalIndent(sb, "", "  ")
+			if err != nil {
+				return err
+			}
+			if output != "" {
+				_ = os.WriteFile(output, js, 0644)
+				skill.Log.Infof("SBOM written to %s", output)
+			} else {
+				os.Stdout.WriteString(string(js) + "\n")
+			}
+			return nil
+		},
+	}
+	sbomCommandFlags := sbomCommand.Flags()
+	sbomCommandFlags.StringVarP(&output, "output", "o", "", "Location path to write SBOM to")
+	sbomCommandFlags.StringVarP(&image, "image", "i", "", "Image reference to index")
+	sbomCommandFlags.StringVarP(&ociDir, "oci-dir", "d", "", "Path to image in OCI format")
+	sbomCommandFlags.BoolVarP(&includeCves, "include-cves", "c", false, "Include package CVEs")
+
+	uploadCommand := &cobra.Command{
+		Use:   "upload [OPTIONS]",
+		Short: "Upload SBOM",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var err error
+
+			if workspace == "" {
+				workspace, _ = config.PluginConfig("index", "workspace")
+				if workspace == "" {
+					workspace, err = readWorkspace(args, dockerCli)
+					if err != nil {
+						return err
+					}
+				}
+			}
+
+			apiKey, _ := config.PluginConfig("index", "api-key")
+			if apiKey == "" {
+				apiKey, err = readApiKey(apiKeyStdin, dockerCli)
+				if err != nil {
+					return err
+				}
+			}
+
+			var sb *sbom.Sbom
+			var img *v1.Image
+			if ociDir == "" {
+				sb, img, err = sbom.IndexImage(image, dockerCli.Client())
+			} else {
+				sb, img, err = sbom.IndexPath(ociDir, image)
+			}
+			if err != nil {
+				return err
+			}
+			err = sbom.UploadSbom(sb, img, workspace, apiKey)
+
+			return nil
+		},
+	}
+	uploadCommandFlags := uploadCommand.Flags()
+	uploadCommandFlags.StringVar(&image, "image", "", "Image reference to index")
+	uploadCommandFlags.StringVar(&ociDir, "oci-dir", "", "Path to image in OCI format")
+	uploadCommandFlags.StringVar(&workspace, "workspace", "", "Atomist workspace")
+	uploadCommandFlags.BoolVar(&apiKeyStdin, "api-key-stdin", false, "Atomist API key")
+
+	cveCommand := &cobra.Command{
+		Use:   "cve [OPTIONS] CVE_ID",
+		Short: "Check if image is vulnerable to given CVE",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) != 1 {
+				return fmt.Errorf(`"docker index cve" requires exactly 1 argument`)
+			}
+			cve := args[0]
+			var err error
+			var sb *sbom.Sbom
+
+			if ociDir == "" {
+				sb, _, err = sbom.IndexImage(image, dockerCli.Client())
+			} else {
+				sb, _, err = sbom.IndexPath(ociDir, image)
+			}
+			if err != nil {
+				return err
+			}
+			workspace, _ := config.PluginConfig("index", "workspace")
+			apiKey, _ := config.PluginConfig("index", "api-key")
+			cves, err := query.QueryCves(sb, cve, workspace, apiKey)
+			if err != nil {
+				return err
+			}
+
+			if len(*cves) > 0 {
+				for _, c := range *cves {
+					skill.Log.Warnf("Detected %s at", cve)
+					skill.Log.Warnf("")
+					purl := c.Purl
+					for _, p := range sb.Artifacts {
+						if p.Purl == purl {
+							skill.Log.Warnf("  %s", p.Purl)
+							loc := p.Locations[0]
+							for i, l := range sb.Source.Image.Config.RootFS.DiffIDs {
+								if l.String() == loc.DiffId {
+									h := sb.Source.Image.Config.History[i]
+									skill.Log.Warnf("    ")
+									skill.Log.Warnf("    Instruction: %s", h.CreatedBy)
+									skill.Log.Warnf("    Layer %d: %s", i, loc.Digest)
 								}
 							}
 						}
 					}
-					os.Exit(1)
-				} else {
-					skill.Log.Infof("%s not detected", cve)
-					os.Exit(0)
 				}
-				return nil
-			},
-		}
-		cveCommandFlags := cveCommand.Flags()
-		cveCommandFlags.StringVarP(&image, "image", "i", "", "Image reference to index")
-		cveCommandFlags.StringVarP(&ociDir, "oci-dir", "d", "", "Path to image in OCI format")
+				os.Exit(1)
+			} else {
+				skill.Log.Infof("%s not detected", cve)
+				os.Exit(0)
+			}
+			return nil
+		},
+	}
+	cveCommandFlags := cveCommand.Flags()
+	cveCommandFlags.StringVarP(&image, "image", "i", "", "Image reference to index")
+	cveCommandFlags.StringVarP(&ociDir, "oci-dir", "d", "", "Path to image in OCI format")
 
-		cmd := &cobra.Command{
-			Use:   "index",
-			Short: "Docker Index",
-		}
+	cmd.AddCommand(loginCommand, logoutCommand, sbomCommand, cveCommand, uploadCommand)
+	return cmd
+}
 
-		cmd.AddCommand(loginCommand, logoutCommand, sbomCommand, cveCommand, uploadCommand)
-		return cmd
-	},
-		manager.Metadata{
-			SchemaVersion: "0.1.0",
-			Vendor:        "Docker Inc.",
-			Version:       internal.FromBuild().Version,
-		})
+func main() {
+	cmd, err := command.NewDockerCli()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	if plugin.RunningStandalone() {
+		err = runStandalone(cmd)
+	} else {
+		err = runPlugin(cmd)
+	}
+
+	if err == nil {
+		return
+	}
+
+	skill.Log.Errorf("%s", err)
+	os.Exit(1)
 }
 
 func readWorkspace(args []string, cli command.Cli) (string, error) {
