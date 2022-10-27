@@ -1,0 +1,166 @@
+/*
+ * Copyright © 2022 Docker, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package sbom
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/anchore/packageurl-go"
+	"github.com/atomist-skills/go-skill"
+)
+
+func NormalizePackages(pkgs []Package) ([]Package, error) {
+	nPks := make([]Package, 0)
+	for i := range pkgs {
+		pkg := pkgs[i]
+		purl, err := toPackageUrl(pkg.Purl)
+		if err != nil {
+			skill.Log.Warnf("Failed to parse purl: %s", pkg.Purl)
+			continue
+		}
+		if purl.Type == "" || purl.Name == "" {
+			skill.Log.Warnf("Incomplete purl: %s", pkg.Purl)
+			continue
+		}
+		purl.Namespace = toNamespace(purl)
+
+		// some versions strings (e.g. such of Go) have a v prefix that we drop
+		if strings.HasPrefix(purl.Version, "v") {
+			purl.Version = purl.Version[1:]
+		}
+		if purl.Version == "" {
+			purl.Version = "0.0.0"
+		}
+
+		// select the qualifiers we support
+		if q := purl.Qualifiers.Map(); len(q) > 0 {
+			qualifiers := make(map[string]string, 0)
+			qualifiers["os_name"] = q["os_name"]
+			qualifiers["os_version"] = q["os_version"]
+			if d := q["os_distro"]; d != "" {
+				qualifiers["os_distro"] = d
+			}
+			purl.Qualifiers = packageurl.QualifiersFromMap(qualifiers)
+		}
+
+		// filter out duplicate locations
+		locations := make([]Location, 0)
+		for _, loc := range pkg.Locations {
+			if !containsLocation(locations, loc.Path) {
+				locations = append(locations, loc)
+			}
+		}
+		pkg.Locations = locations
+
+		// filter out duplicate files
+		files := make([]Location, 0)
+		for _, f := range pkg.Files {
+			if !containsLocation(files, f.Path) {
+				files = append(files, f)
+			}
+		}
+		pkg.Files = files
+
+		// parse license expressions into list of strings
+		pkg.Licenses = parseLicenses(pkg.Licenses)
+
+		// fill in missing details
+		pkg.Type = purl.Type
+		pkg.Namespace = purl.Namespace
+		pkg.Name = purl.Name
+		pkg.Version = purl.Version
+		pkg.Purl = purl.String()
+
+		nPks = append(nPks, pkg)
+	}
+	return nPks, nil
+}
+
+func toPackageUrl(url string) (packageurl.PackageURL, error) {
+	if strings.HasSuffix(url, "/") {
+		url = url[0 : len(url)-1]
+	}
+	purl, err := packageurl.FromString(url)
+	return purl, err
+}
+
+func toNamespace(purl packageurl.PackageURL) string {
+	if v, ok := NamespaceMapping[purl.Namespace]; ok {
+		return v
+	}
+	return purl.Namespace
+}
+
+func parseLicenses(licenses []string) []string {
+	lic := make([]string, 0)
+	for _, license := range licenses {
+		lic = append(lic, parseLicense(license)...)
+	}
+	return lic
+}
+
+func parseLicense(license string) []string {
+	license = strings.TrimSpace(license)
+	if strings.HasPrefix(license, "(") && strings.HasSuffix(license, ")") {
+		license = license[1 : len(license)-1]
+		return parseLicense(license)
+	} else if parts := strings.SplitN(license, " OR ", 2); len(parts) > 1 {
+		lic := []string{strings.TrimSpace(parts[0])}
+		lic = append(lic, parseLicense(parts[1])...)
+		return lic
+	} else if parts := strings.SplitN(license, " AND ", 2); len(parts) > 1 {
+		lic := []string{strings.TrimSpace(parts[0])}
+		lic = append(lic, parseLicense(parts[1])...)
+		return lic
+	} else if parts := strings.SplitN(license, " or ", 2); len(parts) > 1 {
+		lic := []string{strings.TrimSpace(parts[0])}
+		lic = append(lic, parseLicense(parts[1])...)
+		return lic
+	} else if parts := strings.SplitN(license, " and ", 2); len(parts) > 1 {
+		lic := []string{strings.TrimSpace(parts[0])}
+		lic = append(lic, parseLicense(parts[1])...)
+		return lic
+	} else {
+		return []string{license}
+	}
+}
+
+func ToAdvisoryUrl(pkg Package) string {
+	namespace := pkg.Namespace
+	if namespace == "centos" && pkg.Type == "rpm" {
+		namespace = "redhatlinux"
+	}
+
+	purl, _ := toPackageUrl(pkg.Purl)
+	osName := purl.Qualifiers.Map()["os_name"]
+	osVersion := purl.Qualifiers.Map()["os_version"]
+	if osName == "centos" {
+		osName = "redhatlinux"
+	}
+
+	adv := fmt.Sprintf("adv:%s", pkg.Type)
+	if namespace != "" {
+		adv += "/" + namespace
+	}
+	adv += "/" + pkg.Name
+	if osName != "" && osVersion != "" {
+		adv += fmt.Sprintf("?os_name=%s&os_version=%s", osName, osVersion)
+	}
+
+	return strings.ToLower(adv)
+}

@@ -1,0 +1,72 @@
+[:find
+ ?cves
+ :keys cves
+ :in $ $before-db %% ?ctx
+ :where
+
+ [(ground [%s]) ?packages]
+
+ [(adb/query (quote [:find
+                     ?purl ?source-id ?source ?range ?url ?fixed-by
+                     (pull ?v [:vulnerability/source-id
+                               :vulnerability/source
+                               {:vulnerability/urls [:vulnerability.url/value :vulnerability.url/name]}
+                               {:vulnerability/references [:vulnerability.reference/source {:vulnerability.reference/scores [:vulnerability.reference.score/type :vulnerability.reference.score/value]}]}])
+                     (pull ?cve [:vulnerability/source-id
+                                 :vulnerability/source
+                                 :vulnerability/description
+                                 {:vulnerability/urls [:vulnerability.url/value :vulnerability.url/name]}
+                                 {:vulnerability/cwes [:vulnerability.cwe/source-id :vulnerability.cwe/name]}
+                                 {:vulnerability/references [:vulnerability.reference/source {:vulnerability.reference/scores [:vulnerability.reference.score/type :vulnerability.reference.score/value]}]}])
+                     :keys purl source-id source vulnerable-range url fixed-by v cve
+                     :in $ $b %% ?ctx [?packages]
+                     :where
+                     [(untuple ?packages) [?package ...]]
+                     [(untuple ?package) [?purl ?type ?version ?url]]
+                     [?adv :vulnerability.advisory/url ?url]
+
+                     [?v :vulnerability/advisories ?adv]
+                     [?v :vulnerability/source ?source]
+                     [(missing? $ ?v :vulnerability/withdrawn-at)]
+                     [?adv :vulnerability.advisory/versions ?versions]
+                     [?versions :vulnerability.advisory.version/vulnerable-range ?range]
+                     (range-satisfied? ?type ?version ?source ?range)
+
+                     (or-join [?v ?source-id]
+                       [?v :vulnerability/cve-id ?source-id]
+                       (and
+                         [(missing? $ ?v :vulnerability/cve-id)]
+                         [?v :vulnerability/source-id ?source-id]))
+
+                     (or-join [?versions ?fixed-by]
+                       [?versions :vulnerability.advisory.version/fixed-by ?fixed-by]
+                       (and
+                         [(missing? $ ?versions :vulnerability.advisory.version/fixed-by)]
+                         [(ground "not fixed") ?fixed-by]))
+
+                     (or-join [?v ?cve]
+                       (and
+                         [?v :vulnerability/cve-id ?cveId]
+                         [?cve :vulnerability/source-id ?cveId]
+                         [?cve :vulnerability/source "nist"])
+                       (and
+                         [?v :vulnerability/source-id ?cveId]
+                         [?cve :vulnerability/source-id ?cveId]
+                         [?cve :vulnerability/source "nist"])
+                       (and
+                         (not-join [?v]
+                           [?v :vulnerability/cve-id ?cveId]
+                           [?cve :vulnerability/source-id ?cveId]
+                           [?cve :vulnerability/source "nist"]
+                           )
+                         (not-join [?v]
+                           [?v :vulnerability/source-id ?cveId]
+                           [?cve :vulnerability/source-id ?cveId]
+                           [?cve :vulnerability/source "nist"]
+                           )
+                         ([ground "n/a"] ?cve))
+                       )
+                     ])
+    ?packages)
+  ?cves]
+ ]
