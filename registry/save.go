@@ -17,10 +17,12 @@
 package registry
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/atomist-skills/go-skill"
 	"github.com/docker/docker/client"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -76,7 +78,11 @@ func SaveImage(image string, client client.APIClient) (v1.Image, string, error) 
 		if err != nil {
 			return nil, "", errors.Wrapf(err, "failed to pull image: %s", image)
 		} else {
-			path, err = saveOci(img, ref, path)
+			im, _, err := client.ImageInspectWithRaw(context.Background(), image)
+			if err != nil {
+				return nil, "", errors.Wrapf(err, "failed to get local image: %s", image)
+			}
+			path, err = saveOci(im.ID, img, ref, path)
 			if err != nil {
 				return nil, "", errors.Wrapf(err, "failed to save image: %s", image)
 			}
@@ -87,7 +93,15 @@ func SaveImage(image string, client client.APIClient) (v1.Image, string, error) 
 		if err != nil {
 			return nil, "", errors.Wrapf(err, "failed to pull image: %s", image)
 		}
-		path, err = saveOci(img, ref, path)
+		var digest string
+		identifier := ref.Identifier()
+		if strings.HasPrefix(identifier, "sha256:") {
+			digest = identifier
+		} else {
+			digestHash, _ := img.Digest()
+			digest = digestHash.String()
+		}
+		path, err = saveOci(digest, img, ref, path)
 		if err != nil {
 			return nil, "", errors.Wrapf(err, "failed to save image: %s", image)
 		}
@@ -97,16 +111,10 @@ func SaveImage(image string, client client.APIClient) (v1.Image, string, error) 
 
 // saveOci writes the v1.Image img as an OCI Image Layout at path. If a layout
 // already exists at that path, it will add the image to the index.
-func saveOci(img v1.Image, ref name.Reference, path string) (string, error) {
-	var digest string
-	identifier := ref.Identifier()
-	if strings.HasPrefix(identifier, "sha256:") {
-		digest = identifier
-	} else {
-		digestHash, _ := img.Digest()
-		digest = digestHash.String()
-	}
+func saveOci(digest string, img v1.Image, ref name.Reference, path string) (string, error) {
 	finalPath := strings.Replace(filepath.Join(path, digest), ":", string(os.PathSeparator), 1)
+	skill.Log.Debugf("Copying image to %s", finalPath)
+
 	if _, err := os.Stat(finalPath); !os.IsNotExist(err) {
 		return finalPath, nil
 	}
