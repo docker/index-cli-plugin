@@ -3,3 +3,4 @@ dist/
 .idea/
 index-cli-plugin
 /sbom.json
+/docker-index

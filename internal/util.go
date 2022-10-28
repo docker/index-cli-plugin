@@ -19,6 +19,7 @@ package internal
 import (
 	"crypto/sha256"
 	"fmt"
+	"reflect"
 )
 
 func ChunkSlice[K interface{}](slice []K, chunkSize int) [][]K {
@@ -43,4 +44,13 @@ func Hash(value string) string {
 	h.Write([]byte(value))
 	bs := h.Sum(nil)
 	return fmt.Sprintf("%x", bs)
+}
+
+func Contains[K interface{}](slice []K, value K) bool {
+	for _, v := range slice {
+		if reflect.DeepEqual(v, value) {
+			return true
+		}
+	}
+	return false
 }

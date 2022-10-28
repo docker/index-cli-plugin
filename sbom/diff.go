@@ -1,0 +1,384 @@
+/*
+ * Copyright © 2022 Docker, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package sbom
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/anchore/packageurl-go"
+	"github.com/docker/docker/client"
+	"github.com/docker/index-cli-plugin/internal"
+	"github.com/docker/index-cli-plugin/types"
+	"github.com/gookit/color"
+	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/jedib0t/go-pretty/v6/text"
+)
+
+type colors struct {
+	critical    color.RGBColor
+	high        color.RGBColor
+	medium      color.RGBColor
+	low         color.RGBColor
+	unspecified color.RGBColor
+
+	removed color.Color
+	added   color.Color
+	changed color.Color
+}
+
+var defaultColors *colors
+
+func init() {
+	defaultColors = &colors{
+		critical:    color.HEX("D52536"),
+		high:        color.HEX("DD7805"),
+		medium:      color.HEX("FBB552"),
+		low:         color.HEX("FCE1A9"),
+		unspecified: color.HEX("E9ECEF"),
+
+		removed: color.Green,
+		added:   color.Red,
+		changed: color.Yellow,
+	}
+}
+
+func DiffImages(image1 string, image2 string, client client.APIClient, workspace string, apikey string) error {
+	resultChan1 := make(chan ImageIndexResult)
+	resultChan2 := make(chan ImageIndexResult)
+	go indexImageAsync(image1, client, resultChan1)
+	go indexImageAsync(image2, client, resultChan2)
+
+	result1 := <-resultChan1
+	result2 := <-resultChan2
+
+	diffPackages(result1, result2)
+	diffCves(result1, result2)
+	return nil
+}
+
+func toPackageKey(pkg types.Package) string {
+	if pkg.Namespace != "" {
+		return fmt.Sprintf("%s/%s/%s", pkg.Type, pkg.Namespace, pkg.Name)
+	} else {
+		return fmt.Sprintf("%s/%s", pkg.Type, pkg.Name)
+	}
+}
+
+func toPackageName(pkg packageurl.PackageURL) string {
+	if pkg.Namespace != "" {
+		return fmt.Sprintf("%s/%s/%s", pkg.Type, pkg.Namespace, pkg.Name)
+	} else {
+		return fmt.Sprintf("%s/%s", pkg.Type, pkg.Name)
+	}
+}
+
+func toImageName(result ImageIndexResult) string {
+	imageName := result.Sbom.Source.Image.Name
+	if strings.HasPrefix(imageName, "index.docker.io/") {
+		imageName = imageName[len("index.docker.io/"):]
+	}
+	if strings.HasPrefix(imageName, "library/") {
+		imageName = imageName[len("library/"):]
+	}
+	return imageName
+}
+
+func toHeader(result1, result2 ImageIndexResult) (string, string) {
+	image1 := result1.Sbom.Source.Image
+	image2 := result2.Sbom.Source.Image
+	if image1.Name == image2.Name {
+		if image1.Tags != nil && image2.Tags != nil {
+			return (*image1.Tags)[0], (*image2.Tags)[0]
+		} else {
+			return image1.Digest[7:17], image2.Digest[7:17]
+		}
+	} else {
+		return toImageName(result1), toImageName(result2)
+	}
+}
+
+type PackageEntry struct {
+	image1 []types.Package
+	image2 []types.Package
+}
+
+type PackageMap map[string]PackageEntry
+
+func diffPackages(result1, result2 ImageIndexResult) {
+	dc := 0
+	packages := make(PackageMap)
+	for _, p := range result1.Sbom.Artifacts {
+		key := toPackageKey(p)
+		if v, ok := packages[key]; ok {
+			v.image1 = append(v.image1, p)
+			packages[key] = v
+		} else {
+			packages[key] = PackageEntry{
+				image1: []types.Package{p},
+				image2: make([]types.Package, 0),
+			}
+		}
+	}
+	for _, p := range result2.Sbom.Artifacts {
+		key := toPackageKey(p)
+		if v, ok := packages[key]; ok {
+			v.image2 = append(v.image2, p)
+			packages[key] = v
+		} else {
+			packages[key] = PackageEntry{
+				image1: make([]types.Package, 0),
+				image2: []types.Package{p},
+			}
+		}
+	}
+
+	header1, header2 := toHeader(result1, result2)
+
+	t := table.NewWriter()
+	t.AppendHeader(table.Row{"Package", "Version", header1, header2})
+
+	t.SetColumnConfigs([]table.ColumnConfig{
+		{Name: "Package", AutoMerge: true},
+		{Name: "Version", AutoMerge: true},
+		{Number: 3, Align: text.AlignCenter, AlignFooter: text.AlignCenter, AlignHeader: text.AlignCenter},
+		{Number: 4, Align: text.AlignCenter, AlignFooter: text.AlignCenter, AlignHeader: text.AlignCenter},
+	})
+
+	for k, v := range packages {
+		versions := make(PackageMap)
+		for _, p := range v.image1 {
+			key := p.Version
+			if v, ok := versions[key]; ok {
+				v.image1 = append(v.image1, p)
+				versions[key] = v
+			} else {
+				versions[key] = PackageEntry{
+					image1: []types.Package{p},
+					image2: make([]types.Package, 0),
+				}
+			}
+		}
+		for _, p := range v.image2 {
+			key := p.Version
+			if v, ok := versions[key]; ok {
+				v.image2 = append(v.image2, p)
+				versions[key] = v
+			} else {
+				versions[key] = PackageEntry{
+					image1: make([]types.Package, 0),
+					image2: []types.Package{p},
+				}
+			}
+		}
+		for vk, vv := range versions {
+			h1 := len(vv.image1)
+			h2 := len(vv.image2)
+			if h1 != h2 {
+				var l1, l2 string
+				if h1 > 0 {
+					l1 = "+"
+				}
+				if h2 > 0 {
+					l2 = "+"
+				}
+				dc++
+				t.AppendRow(table.Row{k, vk, l1, l2})
+			}
+		}
+	}
+
+	t.SortBy([]table.SortBy{
+		{Name: "Package", Mode: table.Asc},
+		{Name: "Version", Mode: table.Asc},
+	})
+
+	t.SetPageSize(-1)
+	t.SetStyle(table.StyleLight)
+	t.Style().Options.SeparateRows = true
+	if dc > 0 {
+		fmt.Println("Package Comparison")
+		fmt.Println(t.Render())
+	}
+}
+
+type CveEntry struct {
+	image1 []types.Cve
+	image2 []types.Cve
+}
+
+type CveMap map[string]CveEntry
+
+func colorizeSeverity(severity string) string {
+	switch severity {
+	case "CRITICAL":
+		return defaultColors.critical.Sprintf(severity)
+	case "HIGH":
+		return defaultColors.high.Sprintf(severity)
+	case "MEDIUM":
+		return defaultColors.medium.Sprintf(severity)
+	case "LOW":
+		return defaultColors.low.Sprintf(severity)
+	default:
+		return severity
+	}
+}
+
+func toSeverity(cve types.Cve) string {
+	if cve.Cve != nil {
+		for _, r := range cve.Cve.References {
+			if r.Source == "atomist" {
+				for _, s := range r.Scores {
+					if s.Type == "atm_severity" {
+						v := s.Value
+						if v != "SEVERITY_UNSPECIFIED" {
+							return v
+						}
+					}
+				}
+			}
+		}
+	}
+	if cve.Advisory != nil {
+		for _, r := range cve.Advisory.References {
+			if r.Source == "atomist" {
+				for _, s := range r.Scores {
+					if s.Type == "atm_severity" {
+						v := s.Value
+						if v != "SEVERITY_UNSPECIFIED" {
+							return v
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return "IN TRIAGE"
+}
+
+func toSeverityInt(cve types.Cve) int {
+	severity := toSeverity(cve)
+	switch severity {
+	case "CRITICAL":
+		return 4
+	case "HIGH":
+		return 3
+	case "MEDIUM":
+		return 2
+	case "LOW":
+		return 1
+	default:
+		return 0
+	}
+}
+
+func diffCves(result1, result2 ImageIndexResult) {
+	dc := 0
+	cves := make(CveMap)
+	for _, c := range result1.Sbom.Vulnerabilities {
+		key := c.SourceId
+		if v, ok := cves[key]; ok {
+			v.image1 = append(v.image1, c)
+			cves[key] = v
+		} else {
+			cves[key] = CveEntry{
+				image1: []types.Cve{c},
+				image2: make([]types.Cve, 0),
+			}
+		}
+	}
+	for _, c := range result2.Sbom.Vulnerabilities {
+		key := c.SourceId
+		if v, ok := cves[key]; ok {
+			v.image2 = append(v.image2, c)
+			cves[key] = v
+		} else {
+			cves[key] = CveEntry{
+				image1: make([]types.Cve, 0),
+				image2: []types.Cve{c},
+			}
+		}
+	}
+
+	header1, header2 := toHeader(result1, result2)
+
+	t := table.NewWriter()
+	t.AppendHeader(table.Row{"Id", "Sev", "CVE", "Severity", header1, header2})
+
+	t.SetColumnConfigs([]table.ColumnConfig{
+		{Name: "Id", Hidden: true},
+		{Name: "Sev", Hidden: true},
+		{Name: "CVE", AutoMerge: true},
+		{Name: "Severity", Align: text.AlignCenter, AlignHeader: text.AlignCenter},
+		{Number: 5, Align: text.AlignCenter, AlignHeader: text.AlignCenter},
+		{Number: 6, Align: text.AlignCenter, AlignHeader: text.AlignCenter},
+	})
+
+	for k, v := range cves {
+		var cve types.Cve
+		c1 := make([]string, 0)
+		for _, c := range v.image1 {
+			p, _ := types.ToPackageUrl(c.Purl)
+			pp := fmt.Sprintf("%s\n%s", toPackageName(p), p.Version)
+			if c.FixedBy != "not fixed" {
+				pp += fmt.Sprintf("\n> %s", c.FixedBy)
+			}
+			if !internal.Contains(c1, pp) {
+				c1 = append(c1, pp)
+			}
+			cve = c
+		}
+		c2 := make([]string, 0)
+		for _, c := range v.image2 {
+			p, _ := types.ToPackageUrl(c.Purl)
+			pp := fmt.Sprintf("%s\n%s", toPackageName(p), p.Version)
+			if c.FixedBy != "not fixed" {
+				pp += fmt.Sprintf("\n> %s", c.FixedBy)
+			}
+			if !internal.Contains(c2, pp) {
+				c2 = append(c2, pp)
+			}
+			cve = c
+		}
+
+		if len(c1) != len(c2) {
+			cl := k
+			if len(c2) == 0 {
+				cl = defaultColors.removed.Sprintf(k)
+			} else if len(c1) == 0 {
+				cl = defaultColors.added.Sprintf(k)
+			}
+			t.AppendRow(table.Row{k, toSeverityInt(cve), cl, colorizeSeverity(toSeverity(cve)), strings.Join(c1, "\n"), strings.Join(c2, "\n")})
+			dc++
+		}
+	}
+
+	t.SortBy([]table.SortBy{
+		{Name: "Sev", Mode: table.Dsc},
+		{Name: "Id", Mode: table.Asc},
+	})
+
+	t.SetPageSize(-1)
+	t.SetStyle(table.StyleLight)
+	t.Style().Options.SeparateRows = true
+	if dc > 0 {
+		fmt.Println("Vulnerability Comparison")
+		fmt.Println(t.Render())
+	}
+
+}

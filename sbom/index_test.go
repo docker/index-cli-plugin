@@ -18,20 +18,22 @@ package sbom
 
 import (
 	"testing"
+
+	"github.com/docker/index-cli-plugin/types"
 )
 
 func TestMergePackages(t *testing.T) {
-	pkga := Package{
+	pkga := types.Package{
 		Purl: "pkg:maven/foo@1.0.0",
-		Files: []Location{{
+		Files: []types.Location{{
 			Path:   "/bar",
 			Digest: "sha256:1234",
 			DiffId: "sha256:1234",
 		}},
 	}
-	pkgb := Package{
+	pkgb := types.Package{
 		Purl: "pkg:maven/foo@1.0.0",
-		Files: []Location{{
+		Files: []types.Location{{
 			Path:   "/bar",
 			Digest: "sha256:1234",
 			DiffId: "sha256:1234",
@@ -41,12 +43,12 @@ func TestMergePackages(t *testing.T) {
 			DiffId: "sha256:5678",
 		}},
 	}
-	packages := mergePackages(IndexResult{
-		Status:   Success,
-		Packages: []Package{pkga},
-	}, IndexResult{
-		Status:   Success,
-		Packages: []Package{pkgb},
+	packages := mergePackages(types.IndexResult{
+		Status:   types.Success,
+		Packages: []types.Package{pkga},
+	}, types.IndexResult{
+		Status:   types.Success,
+		Packages: []types.Package{pkgb},
 	})
 	if len(packages) != 1 {
 		t.Error("expected 1 package")

@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-package sbom
+package types
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/anchore/packageurl-go"
@@ -28,7 +29,7 @@ func NormalizePackages(pkgs []Package) ([]Package, error) {
 	nPks := make([]Package, 0)
 	for i := range pkgs {
 		pkg := pkgs[i]
-		purl, err := toPackageUrl(pkg.Purl)
+		purl, err := ToPackageUrl(pkg.Purl)
 		if err != nil {
 			skill.Log.Warnf("Failed to parse purl: %s", pkg.Purl)
 			continue
@@ -91,7 +92,7 @@ func NormalizePackages(pkgs []Package) ([]Package, error) {
 	return nPks, nil
 }
 
-func toPackageUrl(url string) (packageurl.PackageURL, error) {
+func ToPackageUrl(url string) (packageurl.PackageURL, error) {
 	if strings.HasSuffix(url, "/") {
 		url = url[0 : len(url)-1]
 	}
@@ -146,7 +147,7 @@ func ToAdvisoryUrl(pkg Package) string {
 		namespace = "redhatlinux"
 	}
 
-	purl, _ := toPackageUrl(pkg.Purl)
+	purl, _ := ToPackageUrl(pkg.Purl)
 	osName := purl.Qualifiers.Map()["os_name"]
 	osVersion := purl.Qualifiers.Map()["os_version"]
 	if osName == "centos" {
@@ -163,4 +164,52 @@ func ToAdvisoryUrl(pkg Package) string {
 	}
 
 	return strings.ToLower(adv)
+}
+
+func MergePackages(results ...IndexResult) []Package {
+	packages := make([]Package, 0)
+	for _, result := range results {
+		if result.Status != Success {
+			skill.Log.Warnf(`Failed to index image with %s: %s`, result.Name, result.Error)
+			continue
+		}
+		for _, pkg := range result.Packages {
+			if p, ok := containsPackage(&packages, pkg); ok {
+				for _, loc := range pkg.Locations {
+					if !containsLocation(packages[p].Locations, loc.Path) {
+						packages[p].Locations = append(packages[p].Locations, loc)
+					}
+				}
+				for _, file := range pkg.Files {
+					if !containsLocation(packages[p].Files, file.Path) {
+						packages[p].Files = append(packages[p].Files, file)
+					}
+				}
+			} else {
+				packages = append(packages, pkg)
+			}
+		}
+	}
+	sort.Slice(packages, func(i, j int) bool {
+		return packages[i].Purl < packages[j].Purl
+	})
+	return packages
+}
+
+func containsPackage(packages *[]Package, pkg Package) (int, bool) {
+	for i, p := range *packages {
+		if p.Purl == pkg.Purl {
+			return i, true
+		}
+	}
+	return -1, false
+}
+
+func containsLocation(locations []Location, path string) bool {
+	for _, loc := range locations {
+		if loc.Path == path {
+			return true
+		}
+	}
+	return false
 }

@@ -21,19 +21,39 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/atomist-skills/go-skill"
 	"github.com/docker/docker/client"
 	"github.com/docker/index-cli-plugin/internal"
+	"github.com/docker/index-cli-plugin/query"
 	"github.com/docker/index-cli-plugin/registry"
+	"github.com/docker/index-cli-plugin/types"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/pkg/errors"
 )
 
-func IndexPath(path string, name string) (*Sbom, *v1.Image, error) {
+type ImageIndexResult struct {
+	Image *v1.Image
+	Sbom  *types.Sbom
+	Error error
+}
+
+func indexImageAsync(image string, client client.APIClient, resultChan chan<- ImageIndexResult) {
+	sbom, img, err := IndexImage(image, client)
+	cves, err := query.QueryCves(sbom, "", "", "")
+	if err == nil {
+		sbom.Vulnerabilities = *cves
+	}
+	resultChan <- ImageIndexResult{
+		Image: img,
+		Sbom:  sbom,
+		Error: err,
+	}
+}
+
+func IndexPath(path string, name string) (*types.Sbom, *v1.Image, error) {
 	skill.Log.Infof("Loading image from %s", path)
 	img, err := registry.ReadImage(path)
 	if err != nil {
@@ -43,7 +63,7 @@ func IndexPath(path string, name string) (*Sbom, *v1.Image, error) {
 	return indexImage(img, name, path)
 }
 
-func IndexImage(image string, client client.APIClient) (*Sbom, *v1.Image, error) {
+func IndexImage(image string, client client.APIClient) (*types.Sbom, *v1.Image, error) {
 	skill.Log.Infof("Copying image %s", image)
 	img, path, err := registry.SaveImage(image, client)
 	if err != nil {
@@ -53,12 +73,12 @@ func IndexImage(image string, client client.APIClient) (*Sbom, *v1.Image, error)
 	return indexImage(img, image, path)
 }
 
-func indexImage(img v1.Image, imageName, path string) (*Sbom, *v1.Image, error) {
+func indexImage(img v1.Image, imageName, path string) (*types.Sbom, *v1.Image, error) {
 	// see if we can re-use an existing sbom
 	sbomPath := filepath.Join(path, "sbom.json")
 	if _, ok := os.LookupEnv("ATOMIST_NO_CACHE"); !ok {
 		if _, err := os.Stat(sbomPath); !os.IsNotExist(err) {
-			var sbom Sbom
+			var sbom types.Sbom
 			b, err := os.ReadFile(sbomPath)
 			if err == nil {
 				err := json.Unmarshal(b, &sbom)
@@ -76,8 +96,8 @@ func indexImage(img v1.Image, imageName, path string) (*Sbom, *v1.Image, error) 
 	skill.Log.Debugf("Created layer mapping")
 
 	skill.Log.Info("Indexing")
-	trivyResultChan := make(chan IndexResult)
-	syftResultChan := make(chan IndexResult)
+	trivyResultChan := make(chan types.IndexResult)
+	syftResultChan := make(chan types.IndexResult)
 	go trivySbom(path, lm, trivyResultChan)
 	go syftSbom(path, lm, syftResultChan)
 
@@ -85,13 +105,13 @@ func indexImage(img v1.Image, imageName, path string) (*Sbom, *v1.Image, error) 
 	syftResult := <-syftResultChan
 
 	var err error
-	trivyResult.Packages, err = NormalizePackages(trivyResult.Packages)
-	syftResult.Packages, err = NormalizePackages(syftResult.Packages)
+	trivyResult.Packages, err = types.NormalizePackages(trivyResult.Packages)
+	syftResult.Packages, err = types.NormalizePackages(syftResult.Packages)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "failed to normalize packagess: %s", imageName)
 	}
 
-	packages := mergePackages(syftResult, trivyResult)
+	packages := types.MergePackages(syftResult, trivyResult)
 
 	skill.Log.Infof(`Indexed %d packages`, len(packages))
 
@@ -113,11 +133,11 @@ func indexImage(img v1.Image, imageName, path string) (*Sbom, *v1.Image, error) 
 		}
 	}
 
-	sbom := Sbom{
+	sbom := types.Sbom{
 		Artifacts: packages,
-		Source: Source{
+		Source: types.Source{
 			Type: "image",
-			Image: ImageSource{
+			Image: types.ImageSource{
 				Name:        imageName,
 				Digest:      d.String(),
 				Manifest:    m,
@@ -125,7 +145,7 @@ func indexImage(img v1.Image, imageName, path string) (*Sbom, *v1.Image, error) 
 				RawManifest: base64.StdEncoding.EncodeToString(manifest),
 				RawConfig:   base64.StdEncoding.EncodeToString(config),
 				Distro:      syftResult.Distro,
-				Platform: Platform{
+				Platform: types.Platform{
 					Os:           c.OS,
 					Architecture: c.Architecture,
 					Variant:      c.Variant,
@@ -133,7 +153,7 @@ func indexImage(img v1.Image, imageName, path string) (*Sbom, *v1.Image, error) 
 				Size: m.Config.Size,
 			},
 		},
-		Descriptor: Descriptor{
+		Descriptor: types.Descriptor{
 			Name:        "docker index",
 			Version:     internal.FromBuild().Version,
 			SbomVersion: internal.FromBuild().SbomVersion,
@@ -152,8 +172,8 @@ func indexImage(img v1.Image, imageName, path string) (*Sbom, *v1.Image, error) 
 	return &sbom, &img, nil
 }
 
-func createLayerMapping(img v1.Image) LayerMapping {
-	lm := LayerMapping{
+func createLayerMapping(img v1.Image) types.LayerMapping {
+	lm := types.LayerMapping{
 		ByDiffId:        make(map[string]string, 0),
 		ByDigest:        make(map[string]string, 0),
 		DiffIdByOrdinal: make(map[int]string, 0),
@@ -177,52 +197,4 @@ func createLayerMapping(img v1.Image) LayerMapping {
 	}
 
 	return lm
-}
-
-func mergePackages(results ...IndexResult) []Package {
-	packages := make([]Package, 0)
-	for _, result := range results {
-		if result.Status != Success {
-			skill.Log.Warnf(`Failed to index image with %s: %s`, result.Name, result.Error)
-			continue
-		}
-		for _, pkg := range result.Packages {
-			if p, ok := containsPackage(&packages, pkg); ok {
-				for _, loc := range pkg.Locations {
-					if !containsLocation(packages[p].Locations, loc.Path) {
-						packages[p].Locations = append(packages[p].Locations, loc)
-					}
-				}
-				for _, file := range pkg.Files {
-					if !containsLocation(packages[p].Files, file.Path) {
-						packages[p].Files = append(packages[p].Files, file)
-					}
-				}
-			} else {
-				packages = append(packages, pkg)
-			}
-		}
-	}
-	sort.Slice(packages, func(i, j int) bool {
-		return packages[i].Purl < packages[j].Purl
-	})
-	return packages
-}
-
-func containsPackage(packages *[]Package, pkg Package) (int, bool) {
-	for i, p := range *packages {
-		if p.Purl == pkg.Purl {
-			return i, true
-		}
-	}
-	return -1, false
-}
-
-func containsLocation(locations []Location, path string) bool {
-	for _, loc := range locations {
-		if loc.Path == path {
-			return true
-		}
-	}
-	return false
 }

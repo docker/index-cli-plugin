@@ -30,16 +30,17 @@ import (
 	"github.com/anchore/syft/syft/pkg/cataloger/deb"
 	"github.com/anchore/syft/syft/pkg/cataloger/rpm"
 	"github.com/anchore/syft/syft/source"
+	"github.com/docker/index-cli-plugin/types"
 	"github.com/pkg/errors"
 )
 
 type packageMapping map[string]*stereoscopeimage.Layer
 
-func syftSbom(ociPath string, lm LayerMapping, resultChan chan<- IndexResult) {
-	result := IndexResult{
+func syftSbom(ociPath string, lm types.LayerMapping, resultChan chan<- types.IndexResult) {
+	result := types.IndexResult{
 		Name:     "syft",
-		Status:   Success,
-		Packages: make([]Package, 0),
+		Status:   types.Success,
+		Packages: make([]types.Package, 0),
 	}
 
 	defer close(resultChan)
@@ -51,14 +52,14 @@ func syftSbom(ociPath string, lm LayerMapping, resultChan chan<- IndexResult) {
 	}
 	src, cleanup, err := source.New(i, nil, nil)
 	if err != nil {
-		result.Status = Failed
+		result.Status = types.Failed
 		result.Error = errors.Wrap(err, "failed to create image source")
 	}
 	defer cleanup()
 
 	packageCatalog, packageRelationships, distro, err := syft.CatalogPackages(src, cataloger.DefaultConfig())
 	if err != nil {
-		result.Status = Failed
+		result.Status = types.Failed
 		result.Error = errors.Wrap(err, "failed to index image")
 	}
 
@@ -72,7 +73,7 @@ func syftSbom(ociPath string, lm LayerMapping, resultChan chan<- IndexResult) {
 		apkPkgs, _, err := apkdb.NewApkdbCataloger().Catalog(res)
 		if err != nil {
 			if err != nil {
-				result.Status = Failed
+				result.Status = types.Failed
 				result.Error = errors.Wrap(err, "failed to catalog apk packages")
 			}
 		}
@@ -80,7 +81,7 @@ func syftSbom(ociPath string, lm LayerMapping, resultChan chan<- IndexResult) {
 		debPkgs, _, err := deb.NewDpkgdbCataloger().Catalog(res)
 		if err != nil {
 			if err != nil {
-				result.Status = Failed
+				result.Status = types.Failed
 				result.Error = errors.Wrap(err, "failed to catalog dep packages")
 			}
 		}
@@ -88,7 +89,7 @@ func syftSbom(ociPath string, lm LayerMapping, resultChan chan<- IndexResult) {
 		rpmPkgs, _, err := rpm.NewRpmdbCataloger().Catalog(res)
 		if err != nil {
 			if err != nil {
-				result.Status = Failed
+				result.Status = types.Failed
 				result.Error = errors.Wrap(err, "failed to catalog rpm packages")
 			}
 		}
@@ -100,7 +101,7 @@ func syftSbom(ociPath string, lm LayerMapping, resultChan chan<- IndexResult) {
 		}
 	}
 
-	result.Packages = make([]Package, 0)
+	result.Packages = make([]types.Package, 0)
 	packages := packageCatalog.Sorted()
 	for _, p := range packages {
 		pkg := toPackage(p, packageRelationships, qualifiers, lm, pm)
@@ -116,11 +117,11 @@ type sourcePackage struct {
 	relationship       string
 }
 
-func toPackage(p pkg2.Package, rels []artifact.Relationship, qualifiers map[string]string, lm LayerMapping, pm packageMapping) []Package {
-	pkg := Package{
+func toPackage(p pkg2.Package, rels []artifact.Relationship, qualifiers map[string]string, lm types.LayerMapping, pm packageMapping) []types.Package {
+	pkg := types.Package{
 		Purl:      p.PURL,
 		Licenses:  p.Licenses,
-		Locations: make([]Location, 0),
+		Locations: make([]types.Location, 0),
 	}
 
 	var sourceNameAndVersion sourcePackage
@@ -219,7 +220,7 @@ func toPackage(p pkg2.Package, rels []artifact.Relationship, qualifiers map[stri
 					path = virtualPath
 				}
 
-				pkg.Files = append(pkg.Files, Location{
+				pkg.Files = append(pkg.Files, types.Location{
 					Path:   path,
 					DiffId: corr.FileSystemID,
 					Digest: lm.ByDiffId[corr.FileSystemID],
@@ -235,7 +236,7 @@ func toPackage(p pkg2.Package, rels []artifact.Relationship, qualifiers map[stri
 			path = virtualPath
 		}
 
-		pkg.Locations = append(pkg.Locations, Location{
+		pkg.Locations = append(pkg.Locations, types.Location{
 			Path:   path,
 			DiffId: loc.FileSystemID,
 			Digest: lm.ByDiffId[loc.FileSystemID],
@@ -270,7 +271,7 @@ func toPackage(p pkg2.Package, rels []artifact.Relationship, qualifiers map[stri
 			purl.Version = sourceNameAndVersion.version
 		}
 		url := purl.String()
-		sourcePkg := Package{
+		sourcePkg := types.Package{
 			Purl:          url,
 			Licenses:      pkg.Licenses,
 			Author:        pkg.Author,
@@ -283,15 +284,15 @@ func toPackage(p pkg2.Package, rels []artifact.Relationship, qualifiers map[stri
 		if sourceNameAndVersion.relationship == "parent" {
 			pkg.Parent = url
 		}
-		return []Package{pkg, sourcePkg}
+		return []types.Package{pkg, sourcePkg}
 	}
 
-	return []Package{pkg}
+	return []types.Package{pkg}
 }
 
-func osQualifiers(release *linux.Release) (Distro, map[string]string) {
+func osQualifiers(release *linux.Release) (types.Distro, map[string]string) {
 	qualifiers := make(map[string]string, 0)
-	distro := Distro{}
+	distro := types.Distro{}
 	if release == nil {
 		return distro, qualifiers
 	}
@@ -306,7 +307,7 @@ func osQualifiers(release *linux.Release) (Distro, map[string]string) {
 		distro.OsVersion = release.VersionID
 	}
 
-	if v, ok := NamespaceMapping[distro.OsName]; ok {
+	if v, ok := types.NamespaceMapping[distro.OsName]; ok {
 		distro.OsName = v
 	}
 

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package sbom
+package types
 
 import v1 "github.com/google/go-containerregistry/pkg/v1"
 

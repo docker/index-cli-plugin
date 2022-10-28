@@ -32,40 +32,41 @@ import (
 	"github.com/aquasecurity/trivy/pkg/fanal/cache"
 	"github.com/aquasecurity/trivy/pkg/fanal/image"
 	"github.com/aquasecurity/trivy/pkg/fanal/utils"
+	"github.com/docker/index-cli-plugin/types"
 	"github.com/pkg/errors"
 )
 
-func trivySbom(ociPath string, lm LayerMapping, resultChan chan<- IndexResult) {
-	result := IndexResult{
+func trivySbom(ociPath string, lm types.LayerMapping, resultChan chan<- types.IndexResult) {
+	result := types.IndexResult{
 		Name:     "trivy",
-		Status:   Success,
-		Packages: make([]Package, 0),
+		Status:   types.Success,
+		Packages: make([]types.Package, 0),
 	}
 
 	defer close(resultChan)
 
 	cacheClient, err := initializeCache()
 	if err != nil {
-		result.Status = Failed
+		result.Status = types.Failed
 		result.Error = errors.Wrap(err, "failed to initialize cache")
 	}
 	defer cacheClient.Close()
 
 	img, err := image.NewArchiveImage(ociPath)
 	if err != nil {
-		result.Status = Failed
+		result.Status = types.Failed
 		result.Error = errors.Wrap(err, "failed to open archived image")
 	}
 
 	art, err := aimage.NewArtifact(img, cacheClient, artifact.Option{})
 	if err != nil {
-		result.Status = Failed
+		result.Status = types.Failed
 		result.Error = errors.Wrap(err, "failed to create new artifact")
 	}
 
 	imageInfo, err := art.Inspect(context.Background())
 	if err != nil {
-		result.Status = Failed
+		result.Status = types.Failed
 		result.Error = errors.Wrap(err, "failed to inspect image")
 	}
 
@@ -76,7 +77,7 @@ func trivySbom(ociPath string, lm LayerMapping, resultChan chan<- IndexResult) {
 			switch err {
 			case analyzer.ErrUnknownOS, analyzer.ErrNoPkgsDetected:
 			default:
-				result.Status = Failed
+				result.Status = types.Failed
 				result.Error = errors.Wrap(err, "failed to inspect layer")
 			}
 		}
@@ -89,15 +90,15 @@ func trivySbom(ociPath string, lm LayerMapping, resultChan chan<- IndexResult) {
 					}
 
 					url := fmt.Sprintf(`pkg:golang/%s@%s`, lib.Name, lib.Version)
-					purl, err := toPackageUrl(url)
+					purl, err := types.ToPackageUrl(url)
 					if err != nil {
-						result.Status = Failed
+						result.Status = types.Failed
 						result.Error = errors.Wrapf(err, "failed to create purl from %s", url)
 						break
 					}
-					pkg := Package{
+					pkg := types.Package{
 						Purl: purl.String(),
-						Locations: []Location{{
+						Locations: []types.Location{{
 							Path:   "/" + app.FilePath,
 							Digest: lm.ByDiffId[lib.Layer.DiffID],
 							DiffId: lib.Layer.DiffID,
@@ -115,15 +116,15 @@ func trivySbom(ociPath string, lm LayerMapping, resultChan chan<- IndexResult) {
 					name := strings.Split(lib.Name, ":")[1]
 
 					url := fmt.Sprintf(`pkg:maven/%s/%s@%s`, namespace, name, lib.Version)
-					purl, err := toPackageUrl(url)
+					purl, err := types.ToPackageUrl(url)
 					if err != nil {
-						result.Status = Failed
+						result.Status = types.Failed
 						result.Error = errors.Wrapf(err, "failed to create purl from %s", url)
 						break
 					}
-					pkg := Package{
+					pkg := types.Package{
 						Purl: purl.String(),
-						Locations: []Location{{
+						Locations: []types.Location{{
 							Path:   "/" + lib.FilePath,
 							Digest: lm.ByDiffId[lib.Layer.DiffID],
 							DiffId: lib.Layer.DiffID,

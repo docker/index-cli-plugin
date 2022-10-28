@@ -23,6 +23,7 @@ import (
 
 	"github.com/atomist-skills/go-skill"
 	"github.com/docker/index-cli-plugin/internal"
+	"github.com/docker/index-cli-plugin/types"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/uuid"
@@ -33,7 +34,7 @@ import (
 )
 
 // UploadSbom transact an image and its data into the data plane
-func UploadSbom(sb *Sbom, img *v1.Image, workspace string, apikey string) error {
+func UploadSbom(sb *types.Sbom, img *v1.Image, workspace string, apikey string) error {
 	host, name, err := parseReference(sb)
 	if err != nil {
 		return errors.Wrapf(err, "failed to obtain host and repository")
@@ -175,7 +176,7 @@ func UploadSbom(sb *Sbom, img *v1.Image, workspace string, apikey string) error 
 				Description: p.Description,
 				Url:         p.Url,
 				Size:        p.Size,
-				AdvisoryUrl: ToAdvisoryUrl(p),
+				AdvisoryUrl: types.ToAdvisoryUrl(p),
 			}
 
 			dep := DependencyEntity{
@@ -277,7 +278,7 @@ func parsePorts(config *v1.ConfigFile) [][2]string {
 	return ports
 }
 
-func parsePlatform(sb *Sbom) string {
+func parsePlatform(sb *types.Sbom) string {
 	p := fmt.Sprintf("%s/%s", sb.Source.Image.Platform.Os, sb.Source.Image.Platform.Architecture)
 	if variant := sb.Source.Image.Platform.Variant; variant != "" {
 		p += fmt.Sprintf("/%s", variant)
@@ -285,7 +286,7 @@ func parsePlatform(sb *Sbom) string {
 	return p
 }
 
-func parseReference(sb *Sbom) (string, string, error) {
+func parseReference(sb *types.Sbom) (string, string, error) {
 	ref, err := name.ParseReference(sb.Source.Image.Name)
 	if err != nil {
 		return "", "", errors.Wrapf(err, "failed to parse reference: %s", sb.Source.Image.Name)

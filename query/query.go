@@ -19,18 +19,19 @@ package query
 import (
 	_ "embed"
 	"fmt"
-	"github.com/docker/index-cli-plugin/internal"
 	"net/http"
 	"strings"
 
+	"github.com/docker/index-cli-plugin/internal"
+	"github.com/docker/index-cli-plugin/types"
+
 	"github.com/atomist-skills/go-skill"
-	"github.com/docker/index-cli-plugin/sbom"
 	"github.com/pkg/errors"
 	"olympos.io/encoding/edn"
 )
 
 type CveResult struct {
-	Cves []sbom.Cve `edn:"cves"`
+	Cves []types.Cve `edn:"cves"`
 }
 
 type QueryResult struct {
@@ -59,10 +60,10 @@ func CheckAuth(workspace string, apiKey string) (bool, error) {
 	return true, nil
 }
 
-func QueryCves(sb *sbom.Sbom, cve string, workspace string, apiKey string) (*[]sbom.Cve, error) {
+func QueryCves(sb *types.Sbom, cve string, workspace string, apiKey string) (*[]types.Cve, error) {
 	pkgs := make([]string, 0)
 	for _, p := range sb.Artifacts {
-		pkgs = append(pkgs, fmt.Sprintf(`["%s" "%s" "%s" "%s"]`, p.Purl, p.Type, p.Version, sbom.ToAdvisoryUrl(p)))
+		pkgs = append(pkgs, fmt.Sprintf(`["%s" "%s" "%s" "%s"]`, p.Purl, p.Type, p.Version, types.ToAdvisoryUrl(p)))
 	}
 
 	var q, name string
