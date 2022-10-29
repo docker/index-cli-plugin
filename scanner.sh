@@ -14,18 +14,21 @@ Val1=$(echo $?)
 
 if [ ! -d /var/lib/docker/image/overlay2/imagedb/content/sha256/ ]; then
 DOCKERPATH=$(docker info  |  grep "Docker Root Dir" | sed 's/^.*: //')
-ls $DOCKERPATH -1 > .temp.
+ls $DOCKERPATH/image/overlay2/imagedb/content/sha256/ -1 > temp
 else
-ls /var/lib/docker/image/overlay2/imagedb/content/sha256/ -1 > .temp.
+ls /var/lib/docker/image/overlay2/imagedb/content/sha256/ -1 > temp
 fi
-for p in (.temp.)
-while read p; do
-#   echo "$p"
-echo "Scannnig $p"
-./docker-index cve --image $p DSA-2022–0001
-echo "Lets go for another Images :)"
+
+file="temp"
+while read -r line
+do
+    printf 'Line: %s\n' "$line"
+    current=$line
+echo "Scanning $current"
+./docker-index cve --image $current DSA-2022–0001
+#echo "Lets go for another Images :)"
+done < $file
 
 
 
-done <.temp.
 echo "Enjoy"
