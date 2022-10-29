@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package sbom
+package detect
 
 import (
 	"fmt"
@@ -23,22 +23,6 @@ import (
 	"github.com/anchore/syft/syft/source"
 	"github.com/docker/index-cli-plugin/types"
 )
-
-type PackageDetector = func(packages []types.Package, image source.Source, lm types.LayerMapping) []types.Package
-
-var detectors []PackageDetector
-
-func init() {
-	detectors = []PackageDetector{nodePackageDetector}
-}
-
-func detectAdditionalPackages(packages []types.Package, image source.Source, lm types.LayerMapping) []types.Package {
-	additionalPackages := make([]types.Package, 0)
-	for _, d := range detectors {
-		additionalPackages = append(additionalPackages, d(packages, image, lm)...)
-	}
-	return additionalPackages
-}
 
 func nodePackageDetector(_ []types.Package, image source.Source, lm types.LayerMapping) []types.Package {
 	var path []string

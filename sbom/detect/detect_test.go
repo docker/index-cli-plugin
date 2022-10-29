@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package sbom
+package detect
 
 import (
 	"testing"
@@ -28,8 +28,10 @@ import (
 
 func TestNodeDetector(t *testing.T) {
 	cmd, _ := command.NewDockerCli()
-	img, ociPath, _ := registry.SaveImage("node@sha256:2b00d259f3b07d8aa694b298a7dcf4655571aea2ab91375b5adb8e5a905d3ee2", cmd.Client())
-	lm := createLayerMapping(img)
+	_, ociPath, _ := registry.SaveImage("node@sha256:2b00d259f3b07d8aa694b298a7dcf4655571aea2ab91375b5adb8e5a905d3ee2", cmd.Client())
+	lm := types.LayerMapping{
+		ByDiffId: make(map[string]string),
+	}
 	i := source.Input{
 		Scheme:      source.ImageScheme,
 		ImageSource: stereoscopeimage.OciDirectorySource,

@@ -4,6 +4,10 @@ vars:
   IMAGE_NAME: docker/index-cli-plugin:local
 
 tasks:
+  go:test:
+    cmds:
+      - go test ./...
+
   go:build:
     cmds:
       - go build -o docker-index -ldflags="-w -s -X 'github.com/docker/index-cli-plugin/internal.version={{.GIT_COMMIT}}'"

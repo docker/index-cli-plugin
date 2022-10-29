@@ -30,6 +30,8 @@ import (
 	"github.com/anchore/syft/syft/pkg/cataloger/deb"
 	"github.com/anchore/syft/syft/pkg/cataloger/rpm"
 	"github.com/anchore/syft/syft/source"
+	"github.com/docker/index-cli-plugin/sbom/detect"
+	"github.com/docker/index-cli-plugin/sbom/util"
 	"github.com/docker/index-cli-plugin/types"
 	"github.com/pkg/errors"
 )
@@ -69,7 +71,7 @@ func syftSbom(ociPath string, lm types.LayerMapping, resultChan chan<- types.Ind
 	pm := make(packageMapping, 0)
 	for _, layer := range src.Image.Layers {
 		layerPkgs := make([]pkg2.Package, 0)
-		res := newSingleLayerResolver(layer)
+		res := util.NewSingleLayerResolver(layer)
 		apkPkgs, _, err := apkdb.NewApkdbCataloger().Catalog(res)
 		if err != nil {
 			if err != nil {
@@ -108,7 +110,7 @@ func syftSbom(ociPath string, lm types.LayerMapping, resultChan chan<- types.Ind
 		result.Packages = append(result.Packages, pkg...)
 	}
 
-	result.Packages = append(result.Packages, detectAdditionalPackages(result.Packages, *src, lm)...)
+	result.Packages = append(result.Packages, detect.AdditionalPackages(result.Packages, *src, lm)...)
 	resultChan <- result
 }
 

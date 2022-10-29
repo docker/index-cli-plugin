@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package sbom
+package util
 
 import (
 	"io"
@@ -30,7 +30,7 @@ type singleLayerResolver struct {
 	layer *image.Layer
 }
 
-func newSingleLayerResolver(layer *image.Layer) *singleLayerResolver {
+func NewSingleLayerResolver(layer *image.Layer) *singleLayerResolver {
 	return &singleLayerResolver{layer: layer}
 }
 
