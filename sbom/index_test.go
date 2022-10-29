@@ -43,7 +43,7 @@ func TestMergePackages(t *testing.T) {
 			DiffId: "sha256:5678",
 		}},
 	}
-	packages := mergePackages(types.IndexResult{
+	packages := types.MergePackages(types.IndexResult{
 		Status:   types.Success,
 		Packages: []types.Package{pkga},
 	}, types.IndexResult{

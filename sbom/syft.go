@@ -107,6 +107,8 @@ func syftSbom(ociPath string, lm types.LayerMapping, resultChan chan<- types.Ind
 		pkg := toPackage(p, packageRelationships, qualifiers, lm, pm)
 		result.Packages = append(result.Packages, pkg...)
 	}
+
+	result.Packages = append(result.Packages, detectAdditionalPackages(result.Packages, *src, lm)...)
 	resultChan <- result
 }
 

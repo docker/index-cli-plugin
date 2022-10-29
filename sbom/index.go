@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/atomist-skills/go-skill"
 	"github.com/docker/docker/client"
@@ -35,18 +36,21 @@ import (
 )
 
 type ImageIndexResult struct {
+	Input string
 	Image *v1.Image
 	Sbom  *types.Sbom
 	Error error
 }
 
-func indexImageAsync(image string, client client.APIClient, resultChan chan<- ImageIndexResult) {
+func indexImageAsync(wg *sync.WaitGroup, image string, client client.APIClient, resultChan chan<- ImageIndexResult) {
+	defer wg.Done()
 	sbom, img, err := IndexImage(image, client)
 	cves, err := query.QueryCves(sbom, "", "", "")
 	if err == nil {
 		sbom.Vulnerabilities = *cves
 	}
 	resultChan <- ImageIndexResult{
+		Input: image,
 		Image: img,
 		Sbom:  sbom,
 		Error: err,

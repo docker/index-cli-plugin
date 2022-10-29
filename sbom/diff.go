@@ -19,6 +19,7 @@ package sbom
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/anchore/packageurl-go"
 	"github.com/docker/docker/client"
@@ -58,13 +59,23 @@ func init() {
 }
 
 func DiffImages(image1 string, image2 string, client client.APIClient, workspace string, apikey string) error {
-	resultChan1 := make(chan ImageIndexResult)
-	resultChan2 := make(chan ImageIndexResult)
-	go indexImageAsync(image1, client, resultChan1)
-	go indexImageAsync(image2, client, resultChan2)
+	resultChan := make(chan ImageIndexResult, 2)
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go indexImageAsync(&wg, image1, client, resultChan)
+	go indexImageAsync(&wg, image2, client, resultChan)
+	wg.Wait()
+	close(resultChan)
 
-	result1 := <-resultChan1
-	result2 := <-resultChan2
+	var result1, result2 ImageIndexResult
+	for result := range resultChan {
+		switch result.Input {
+		case image1:
+			result1 = result
+		case image2:
+			result2 = result
+		}
+	}
 
 	diffPackages(result1, result2)
 	diffCves(result1, result2)
@@ -154,7 +165,7 @@ func diffPackages(result1, result2 ImageIndexResult) {
 
 	t.SetColumnConfigs([]table.ColumnConfig{
 		{Name: "Package", AutoMerge: true},
-		{Name: "Version", AutoMerge: true},
+		{Name: "Version", AutoMerge: true, Align: text.AlignRight},
 		{Number: 3, Align: text.AlignCenter, AlignFooter: text.AlignCenter, AlignHeader: text.AlignCenter},
 		{Number: 4, Align: text.AlignCenter, AlignFooter: text.AlignCenter, AlignHeader: text.AlignCenter},
 	})
@@ -239,33 +250,30 @@ func colorizeSeverity(severity string) string {
 }
 
 func toSeverity(cve types.Cve) string {
-	if cve.Cve != nil {
-		for _, r := range cve.Cve.References {
+	findSeverity := func(adv *types.Advisory) (string, bool) {
+		if adv == nil {
+			return "", false
+		}
+		for _, r := range (*adv).References {
 			if r.Source == "atomist" {
 				for _, s := range r.Scores {
 					if s.Type == "atm_severity" {
 						v := s.Value
 						if v != "SEVERITY_UNSPECIFIED" {
-							return v
+							return v, true
 						}
 					}
 				}
 			}
 		}
+		return "", false
 	}
-	if cve.Advisory != nil {
-		for _, r := range cve.Advisory.References {
-			if r.Source == "atomist" {
-				for _, s := range r.Scores {
-					if s.Type == "atm_severity" {
-						v := s.Value
-						if v != "SEVERITY_UNSPECIFIED" {
-							return v
-						}
-					}
-				}
-			}
-		}
+
+	if severity, ok := findSeverity(cve.Cve); ok {
+		return severity
+	}
+	if severity, ok := findSeverity(cve.Advisory); ok {
+		return severity
 	}
 
 	return "IN TRIAGE"
