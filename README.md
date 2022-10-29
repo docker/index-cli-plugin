@@ -26,6 +26,12 @@ $ docker-index sbom --image <IMAGE>
 * `--oci-dir <DIR>` can point to a local image in OCI directory format
 * `--output <OUTPUT FILE>` allows to store the generated SBOM in a local file
 * `--include-cves` will include all detected CVEs in generated output
+### `scanner.sh`
+
+To scan all of local images , use the following command:
+```shell
+./checker.sh
+```
 
 ### `docker-index cve`
 
