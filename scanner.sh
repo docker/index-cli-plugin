@@ -28,7 +28,4 @@ echo "Scanning $current"
 ./docker-index cve --image $current DSA-2022–0001
 #echo "Lets go for another Images :)"
 done < $file
-
-
-
 echo "Enjoy"
