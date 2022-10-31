@@ -81,7 +81,7 @@ func QueryCves(sb *types.Sbom, cve string, workspace string, apiKey string) (*[]
 		return nil, errors.Wrapf(err, "failed to unmarshal response")
 	}
 	if len(result.Query.Data) > 0 {
-		if len(result.Query.Data) == 1 {
+		if len(result.Query.Data) == 1 && len(result.Query.Data[0].Cves) != 0 {
 			skill.Log.Infof("Detected %d vulnerability", len(result.Query.Data[0].Cves))
 		} else {
 			skill.Log.Infof("Detected %d vulnerabilities", len(result.Query.Data[0].Cves))
