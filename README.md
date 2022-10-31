@@ -1,8 +1,8 @@
 **Note:** This repository is not an officially supported Docker project.
 
-# `docker index` Docker CLI plugin
+# `docker index` Docker CLI tool
 
-Docker CLI plugin to create image SBOMs as well as analyze packages for known vulnerabilities 
+Docker CLI tool to create image SBOMs as well as analyze packages for known vulnerabilities 
 using the Atomist data plane.
 
 ## Installation
