@@ -135,10 +135,10 @@ func saveTar(digest string, img v1.Image, ref name.Reference, path string) (stri
 	}()
 
 	cleanup := func() {
-		e := os.Remove(tarPath)
-		if e != nil {
-			skill.Log.Warnf("Failed to delete tmp image archive %s", tarPath)
-		}
+		// e := os.Remove(tarPath)
+		//if e != nil {
+		//	skill.Log.Warnf("Failed to delete tmp image archive %s", tarPath)
+		//}
 	}
 
 	var update v1.Update

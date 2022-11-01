@@ -34,6 +34,7 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/moby/term"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -56,12 +57,16 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 	}
 
 	skill.Log.SetOutput(os.Stderr)
+	skill.Log.SetFormatter(&logrus.TextFormatter{
+		DisableTimestamp:       true,
+		DisableLevelTruncation: true,
+	})
 
 	config := dockerCli.ConfigFile()
 
 	var (
-		output, ociDir, image, workspace string
-		apiKeyStdin, includeCves         bool
+		output, ociDir, image, workspace    string
+		apiKeyStdin, includeCves, remediate bool
 	)
 
 	logoutCommand := &cobra.Command{
@@ -198,11 +203,12 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 			cve := args[0]
 			var err error
 			var sb *types.Sbom
+			var img *v1.Image
 
 			if ociDir == "" {
-				sb, _, err = sbom.IndexImage(image, dockerCli.Client())
+				sb, img, err = sbom.IndexImage(image, dockerCli.Client())
 			} else {
-				sb, _, err = sbom.IndexPath(ociDir, image)
+				sb, img, err = sbom.IndexPath(ociDir, image)
 			}
 			if err != nil {
 				return err
@@ -216,24 +222,61 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 
 			if len(*cves) > 0 {
 				for _, c := range *cves {
-					fmt.Println(fmt.Sprintf("Detected %s at", cve))
-					fmt.Println("")
-					purl := c.Purl
+					query.FormatCve(sb, &c)
+
+					if !remediate {
+						continue
+					}
+
+					var remediation = make([]string, 0)
+					layerIndex := -1
 					for _, p := range sb.Artifacts {
-						if p.Purl == purl {
-							fmt.Println(fmt.Sprintf("  %s", p.Purl))
+						if p.Purl == c.Purl {
 							loc := p.Locations[0]
 							for i, l := range sb.Source.Image.Config.RootFS.DiffIDs {
-								if l.String() == loc.DiffId {
-									h := sb.Source.Image.Config.History[i]
-									fmt.Println("    ")
-									fmt.Println(fmt.Sprintf("    Instruction: %s", h.CreatedBy))
-									fmt.Println(fmt.Sprintf("    Layer %d: %s", i, loc.Digest))
+								if l.String() == loc.DiffId && layerIndex < i {
+									layerIndex = i
 								}
+							}
+
+							if rem := query.FormatPackageRemediation(p, c); rem != "" {
+								remediation = append(remediation, rem)
 							}
 						}
 					}
+
+					// see if the package comes in via the base image
+					s := StartInfoSpinner("Detecting base image")
+					defer s.Stop()
+					baseImages, index, _ := query.Detect(img, true, workspace, apiKey)
+					s.Stop()
+					var baseImage *query.Image
+					if layerIndex <= index && baseImages != nil && len(*baseImages) > 0 {
+						baseImage = &(*baseImages)[0]
+
+						fmt.Println("")
+						fmt.Println("installed in base image")
+						fmt.Println("")
+						fmt.Println(query.FormatImage(baseImage))
+					}
+
+					if baseImage != nil {
+						s := StartInfoSpinner("Finding alternative base images")
+						defer s.Stop()
+						aBaseImage, _ := query.ForBaseImageWithoutCve(c.SourceId, baseImage.Repository.Name, img, workspace, apiKey)
+						s.Stop()
+						if aBaseImage != nil && len(*aBaseImage) > 0 {
+							e := []string{fmt.Sprintf("Update base image\n\nAlternative base images not vulnerable to %s", c.SourceId)}
+							for _, a := range *aBaseImage {
+								e = append(e, query.FormatImage(&a))
+							}
+							remediation = append(remediation, strings.Join(e, "\n\n"))
+						}
+					}
+
+					query.FormatRemediation(remediation)
 				}
+
 				os.Exit(1)
 			} else {
 				fmt.Println(fmt.Sprintf("%s not detected", cve))
@@ -245,6 +288,7 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 	cveCommandFlags := cveCommand.Flags()
 	cveCommandFlags.StringVarP(&image, "image", "i", "", "Image reference to index")
 	cveCommandFlags.StringVarP(&ociDir, "oci-dir", "d", "", "Path to image in OCI format")
+	cveCommandFlags.BoolVarP(&remediate, "remediate", "r", false, "Include suggested remediation")
 
 	diffCommand := &cobra.Command{
 		Use:   "diff [OPTIONS]",

@@ -28,14 +28,14 @@ import (
 
 func TestNodeDetector(t *testing.T) {
 	cmd, _ := command.NewDockerCli()
-	_, ociPath, _ := registry.SaveImage("node@sha256:2b00d259f3b07d8aa694b298a7dcf4655571aea2ab91375b5adb8e5a905d3ee2", cmd.Client())
+	_, ociPath, _, _ := registry.SaveImage("node@sha256:2b00d259f3b07d8aa694b298a7dcf4655571aea2ab91375b5adb8e5a905d3ee2", cmd.Client())
 	lm := types.LayerMapping{
 		ByDiffId: make(map[string]string),
 	}
 	i := source.Input{
 		Scheme:      source.ImageScheme,
-		ImageSource: stereoscopeimage.OciDirectorySource,
-		Location:    ociPath,
+		ImageSource: stereoscopeimage.DockerTarballSource,
+		Location:    ociPath + "/archive.tar",
 	}
 	src, _, _ := source.New(i, nil, nil)
 	packages := nodePackageDetector()([]types.Package{}, *src, lm)

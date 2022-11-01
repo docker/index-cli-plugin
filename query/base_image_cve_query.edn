@@ -1,0 +1,78 @@
+[:find
+ ?image
+ :in $ $b %%
+ :where
+ ([ground "%s"] ?source-id)
+ ([ground "%s"] ?name)
+ ([ground "%s"] ?os)
+ ([ground "%s"] ?architecture)
+ ([ground "%s"] ?variant)
+
+ [(adb/query (quote [:find
+                     (pull ?image [:atomist/team-id
+                                   :docker.image/digest
+                                   :docker.image/tags
+                                   :docker.image/created-at
+                                   {:docker.image/file [:git.file/path]}
+                                   {:docker.image/commit [:git.commit/sha
+                                                          {:git.commit/repo [:git.repo/name
+                                                                             {:git.repo/org [:git.org/name]}]}]}
+                                   {(:docker.tag/_image :as :docker.image/tag) [:docker.tag/name]}
+                                   {(:docker.manifest-list/_images :as :docker.image/manifest-list) [:docker.manifest-list/digest
+                                                                                                     {(:docker.tag/_manifest-list :as :docker.manifest-list/tag) [:docker.tag/name]}]}
+                                   {(:vulnerability.report/_package :as :vulnerability.report/report) [:vulnerability.report/critical
+                                                                                                       :vulnerability.report/high
+                                                                                                       :vulnerability.report/medium
+                                                                                                       :vulnerability.report/low
+                                                                                                       :vulnerability.report/unspecified
+                                                                                                       :vulnerability.report/total]}
+                                   {:docker.image/repository [:docker.repository/host
+                                                              :docker.repository/badge
+                                                              (:docker.repository/repository :as :docker.repository/name)]}])
+                     :in $ $b %% ?ctx [?name ?os ?architecture ?variant ?source-id]
+                     :where
+                     [?repo :docker.repository/repository ?name]
+                     [?repo :docker.repository/supported-tags ?supported-tag]
+
+                     [?tag :docker.tag/repository ?repo]
+                     [?tag :docker.tag/name ?supported-tag]
+
+                     (or-join [?tag ?image]
+                       [?tag :docker.tag/image ?image]
+                       (and
+                         [?tag :docker.tag/manifest-list ?manifest]
+                         [?manifest :docker.manifest-list/images ?image]
+                         )
+                       )
+
+                     [?platform :docker.platform/image ?image]
+                     [?platform :docker.platform/os ?os]
+                     [?platform :docker.platform/architecture ?architecture]
+                     (or-join [?platform ?variant]
+                       [?platform :docker.platform/variant ?variant]
+                       [(= ?variant "")]
+                       )
+
+                     (not-join [?image ?source-id]
+                       [?v :vulnerability/source-id ?source-id]
+                       [?v :vulnerability/source ?source]
+                       [?v :vulnerability/advisories ?adv]
+                       [(missing? $ ?v :vulnerability/withdrawn-at)]
+                       [?adv :vulnerability.advisory/url ?url]
+                       [?image :artifact/dependencies ?dep]
+                       [?dep :package.dependency/package ?p]
+                       [?p :package/advisory-url ?url]
+                       [?p :package/type ?type]
+                       [?p :package/version ?version]
+
+                       [?adv :vulnerability.advisory/versions ?versions]
+                       [?versions :vulnerability.advisory.version/vulnerable-range ?range]
+                       (range-satisfied? ?type ?version ?source ?range)
+                       )
+                     ])
+    ?name ?os ?architecture ?variant ?source-id)
+  ?results]
+
+ [(untuple ?results) [?result ...]]
+ [(untuple ?result) [?image]]
+ ]

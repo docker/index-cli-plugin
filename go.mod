@@ -8,16 +8,21 @@ require (
 	github.com/anchore/syft v0.59.0
 	github.com/aquasecurity/trivy v0.30.4
 	github.com/atomist-skills/go-skill v0.0.6-0.20221003172518-c3d268e1f3f1
+	github.com/briandowns/spinner v1.12.0
 	github.com/docker/cli v20.10.21+incompatible
 	github.com/docker/docker v20.10.17+incompatible
+	github.com/dustin/go-humanize v1.0.0
 	github.com/google/go-containerregistry v0.11.0
 	github.com/google/uuid v1.3.0
+	github.com/gookit/color v1.5.2
 	github.com/jedib0t/go-pretty/v6 v6.4.0
 	github.com/moby/term v0.0.0-20220808134915-39b0c02b01ae
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.0.3-0.20220303224323-02efb9a75ee1
 	github.com/pkg/errors v0.9.1
+	github.com/sirupsen/logrus v1.9.0
 	github.com/spf13/cobra v1.5.0
+	github.com/xeonx/timeago v1.0.0-rc5
 	olympos.io/encoding/edn v0.0.0-20201019073823-d3554ca0b0a3
 )
 
@@ -72,10 +77,10 @@ require (
 	github.com/docker/go-metrics v0.0.1 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dsnet/compress v0.0.2-0.20210315054119-f66993602bf5 // indirect
-	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/ekzhu/minhash-lsh v0.0.0-20171225071031-5c06ee8586a1 // indirect
 	github.com/emirpasic/gods v1.12.0 // indirect
 	github.com/facebookincubator/nvdtools v0.1.4 // indirect
+	github.com/fatih/color v1.13.0 // indirect
 	github.com/fvbommel/sortorder v1.0.2 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.0 // indirect
 	github.com/go-enry/go-license-detector/v4 v4.3.0 // indirect
@@ -92,7 +97,6 @@ require (
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/licenseclassifier/v2 v2.0.0-pre5 // indirect
-	github.com/gookit/color v1.5.2 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
@@ -112,6 +116,7 @@ require (
 	github.com/klauspost/pgzip v1.2.5 // indirect
 	github.com/knqyf263/go-rpmdb v0.0.0-20220629110411-9a3bd2ebb923 // indirect
 	github.com/knqyf263/nested v0.0.1 // indirect
+	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
@@ -150,7 +155,6 @@ require (
 	github.com/sergi/go-diff v1.2.0 // indirect
 	github.com/shogo82148/go-shuffle v0.0.0-20170808115208-59829097ff3b // indirect
 	github.com/shopspring/decimal v1.2.0 // indirect
-	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/spdx/tools-golang v0.3.0 // indirect
 	github.com/spf13/afero v1.8.2 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
