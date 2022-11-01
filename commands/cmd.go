@@ -55,6 +55,8 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 		cli.DisableFlagsInUseLine(cmd)
 	}
 
+	skill.Log.SetOutput(os.Stderr)
+
 	config := dockerCli.ConfigFile()
 
 	var (
@@ -85,7 +87,7 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 				return err
 			}
 			if valid, err := query.CheckAuth(workspace, apiKey); err == nil && valid {
-				skill.Log.Info("Login successful")
+				fmt.Println("Login successful")
 				config.SetPluginConfig("index", "workspace", workspace)
 				config.SetPluginConfig("index", "api-key", apiKey)
 				return config.Save()
@@ -130,7 +132,7 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 				_ = os.WriteFile(output, js, 0644)
 				skill.Log.Infof("SBOM written to %s", output)
 			} else {
-				os.Stdout.WriteString(string(js) + "\n")
+				fmt.Println(string(js))
 			}
 			return nil
 		},
@@ -214,19 +216,19 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 
 			if len(*cves) > 0 {
 				for _, c := range *cves {
-					skill.Log.Warnf("Detected %s at", cve)
-					skill.Log.Warnf("")
+					fmt.Println(fmt.Sprintf("Detected %s at", cve))
+					fmt.Println("")
 					purl := c.Purl
 					for _, p := range sb.Artifacts {
 						if p.Purl == purl {
-							skill.Log.Warnf("  %s", p.Purl)
+							fmt.Println(fmt.Sprintf("  %s", p.Purl))
 							loc := p.Locations[0]
 							for i, l := range sb.Source.Image.Config.RootFS.DiffIDs {
 								if l.String() == loc.DiffId {
 									h := sb.Source.Image.Config.History[i]
-									skill.Log.Warnf("    ")
-									skill.Log.Warnf("    Instruction: %s", h.CreatedBy)
-									skill.Log.Warnf("    Layer %d: %s", i, loc.Digest)
+									fmt.Println("    ")
+									fmt.Println(fmt.Sprintf("    Instruction: %s", h.CreatedBy))
+									fmt.Println(fmt.Sprintf("    Layer %d: %s", i, loc.Digest))
 								}
 							}
 						}
@@ -234,7 +236,7 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 				}
 				os.Exit(1)
 			} else {
-				skill.Log.Infof("%s not detected", cve)
+				fmt.Println(fmt.Sprintf("%s not detected", cve))
 				os.Exit(0)
 			}
 			return nil

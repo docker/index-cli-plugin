@@ -17,6 +17,13 @@
 package detect
 
 import (
+	"bufio"
+	"fmt"
+	"io"
+	"regexp"
+	"strconv"
+	"strings"
+
 	"github.com/anchore/syft/syft/source"
 	"github.com/docker/index-cli-plugin/types"
 )
@@ -26,7 +33,7 @@ type PackageDetector = func(packages []types.Package, image source.Source, lm ty
 var detectors []PackageDetector
 
 func init() {
-	detectors = []PackageDetector{nodePackageDetector}
+	detectors = []PackageDetector{nodePackageDetector()}
 }
 
 func AdditionalPackages(packages []types.Package, image source.Source, lm types.LayerMapping) []types.Package {
@@ -35,4 +42,113 @@ func AdditionalPackages(packages []types.Package, image source.Source, lm types.
 		additionalPackages = append(additionalPackages, d(packages, image, lm)...)
 	}
 	return additionalPackages
+}
+
+func stringsNodeDetector(executable string, versionEnvVar string, expr *regexp.Regexp, pkg types.Package) PackageDetector {
+	return func(packages []types.Package, image source.Source, lm types.LayerMapping) []types.Package {
+		// Already found via package manager
+		for _, p := range packages {
+			if purl, err := types.ToPackageUrl(p.Purl); err == nil && purl.Name == pkg.Name {
+				return []types.Package{}
+			}
+		}
+
+		var path []string
+		var version string
+
+		env := image.Image.Metadata.Config.Config.Env
+		for _, e := range env {
+			k := strings.Split(e, "=")[0]
+			v := strings.Split(e, "=")[1]
+			switch k {
+			case versionEnvVar:
+				version = v
+			case "PATH":
+				path = strings.Split(v, ":")
+			}
+		}
+
+		if len(path) > 0 {
+			res, _ := image.FileResolver(source.SquashedScope)
+			for _, p := range path {
+				fp := fmt.Sprintf("%s/%s", p, executable)
+				if locations, err := res.FilesByPath(fp); err == nil && len(locations) > 0 {
+					loc := locations[0]
+
+					if version == "" {
+						f, _ := res.FileContentsByLocation(loc)
+						values := readStrings(f, expr)
+						if len(values) > 0 {
+							version = values[0][1]
+						}
+					}
+
+					if version == "" {
+						continue
+					}
+
+					pkg.Version = version
+					pkg.Purl = types.PackageToPackageUrl(pkg).String()
+					pkg.Locations = []types.Location{{
+						Path:   fp,
+						DiffId: loc.FileSystemID,
+						Digest: lm.ByDiffId[loc.FileSystemID],
+					}}
+					return []types.Package{pkg}
+				}
+			}
+		}
+
+		return []types.Package{}
+	}
+}
+
+var (
+	min   = 6
+	max   = 256
+	ascii = true
+)
+
+func readStrings(reader io.ReadCloser, expr *regexp.Regexp) [][]string {
+	defer reader.Close()
+	in := bufio.NewReader(reader)
+	str := make([]rune, 0, max)
+	filePos := int64(0)
+	verify := func() [][]string {
+		if len(str) >= min {
+			s := string(str)
+			if m := expr.FindAllStringSubmatch(s, -1); len(m) > 0 {
+				return m
+			}
+		}
+		str = str[0:0]
+		return [][]string{}
+	}
+	for {
+		var (
+			r   rune
+			wid int
+			err error
+		)
+		for ; ; filePos += int64(wid) {
+			r, wid, err = in.ReadRune()
+			if err != nil {
+				return [][]string{}
+			}
+			if !strconv.IsPrint(r) || ascii && r >= 0xFF {
+				if d := verify(); len(d) > 0 {
+					return d
+				}
+				continue
+			}
+			// It's printable. Keep it.
+			if len(str) >= max {
+				if d := verify(); len(d) > 0 {
+					return d
+				}
+			}
+			str = append(str, r)
+		}
+	}
+	return [][]string{}
 }

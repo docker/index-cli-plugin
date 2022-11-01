@@ -100,6 +100,10 @@ func ToPackageUrl(url string) (packageurl.PackageURL, error) {
 	return purl, err
 }
 
+func PackageToPackageUrl(pkp Package) *packageurl.PackageURL {
+	return packageurl.NewPackageURL(pkp.Type, pkp.Namespace, pkp.Name, pkp.Version, packageurl.QualifiersFromMap(make(map[string]string)), "")
+}
+
 func toNamespace(purl packageurl.PackageURL) string {
 	if v, ok := NamespaceMapping[purl.Namespace]; ok {
 		return v

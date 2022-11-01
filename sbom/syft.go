@@ -49,8 +49,8 @@ func syftSbom(ociPath string, lm types.LayerMapping, resultChan chan<- types.Ind
 
 	i := source.Input{
 		Scheme:      source.ImageScheme,
-		ImageSource: stereoscopeimage.OciDirectorySource,
-		Location:    ociPath,
+		ImageSource: stereoscopeimage.DockerTarballSource,
+		Location:    ociPath + "/archive.tar",
 	}
 	src, cleanup, err := source.New(i, nil, nil)
 	if err != nil {

@@ -69,9 +69,12 @@ func IndexPath(path string, name string) (*types.Sbom, *v1.Image, error) {
 
 func IndexImage(image string, client client.APIClient) (*types.Sbom, *v1.Image, error) {
 	skill.Log.Infof("Copying image %s", image)
-	img, path, err := registry.SaveImage(image, client)
+	img, path, cleanup, err := registry.SaveImage(image, client)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to download image")
+		return nil, nil, errors.Wrap(err, "failed to copy image")
+	}
+	if cleanup != nil {
+		defer cleanup()
 	}
 	skill.Log.Infof("Copied image")
 	return indexImage(img, image, path)

@@ -24,14 +24,15 @@ import (
 
 	"github.com/atomist-skills/go-skill"
 	"github.com/docker/docker/client"
+	"github.com/dustin/go-humanize"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/daemon"
-	"github.com/google/go-containerregistry/pkg/v1/empty"
-	"github.com/google/go-containerregistry/pkg/v1/layout"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 type ImageId struct {
@@ -58,11 +59,13 @@ func (i ImageId) String() string {
 	return i.name
 }
 
+type Cleanup = func()
+
 // SaveImage stores the v1.Image at path returned in OCI format
-func SaveImage(image string, client client.APIClient) (v1.Image, string, error) {
+func SaveImage(image string, client client.APIClient) (v1.Image, string, Cleanup, error) {
 	ref, err := name.ParseReference(image)
 	if err != nil {
-		return nil, "", errors.Wrapf(err, "failed to parse reference: %s", image)
+		return nil, "", nil, errors.Wrapf(err, "failed to parse reference: %s", image)
 	}
 
 	var path string
@@ -76,22 +79,22 @@ func SaveImage(image string, client client.APIClient) (v1.Image, string, error) 
 	if err != nil {
 		img, err := daemon.Image(ImageId{name: image}, daemon.WithClient(client))
 		if err != nil {
-			return nil, "", errors.Wrapf(err, "failed to pull image: %s", image)
+			return nil, "", nil, errors.Wrapf(err, "failed to pull image: %s", image)
 		} else {
 			im, _, err := client.ImageInspectWithRaw(context.Background(), image)
 			if err != nil {
-				return nil, "", errors.Wrapf(err, "failed to get local image: %s", image)
+				return nil, "", nil, errors.Wrapf(err, "failed to get local image: %s", image)
 			}
-			path, err = saveOci(im.ID, img, ref, path)
+			path, cleanup, err := saveTar(im.ID, img, ref, path)
 			if err != nil {
-				return nil, "", errors.Wrapf(err, "failed to save image: %s", image)
+				return nil, "", nil, errors.Wrapf(err, "failed to save image: %s", image)
 			}
+			return img, path, cleanup, nil
 		}
-		return img, path, nil
 	} else {
 		img, err := desc.Image()
 		if err != nil {
-			return nil, "", errors.Wrapf(err, "failed to pull image: %s", image)
+			return nil, "", nil, errors.Wrapf(err, "failed to pull image: %s", image)
 		}
 		var digest string
 		identifier := ref.Identifier()
@@ -101,38 +104,70 @@ func SaveImage(image string, client client.APIClient) (v1.Image, string, error) 
 			digestHash, _ := img.Digest()
 			digest = digestHash.String()
 		}
-		path, err = saveOci(digest, img, ref, path)
+		path, cleanup, err := saveTar(digest, img, ref, path)
 		if err != nil {
-			return nil, "", errors.Wrapf(err, "failed to save image: %s", image)
+			return nil, "", nil, errors.Wrapf(err, "failed to save image: %s", image)
 		}
-		return img, path, nil
+		return img, path, cleanup, nil
 	}
 }
 
-// saveOci writes the v1.Image img as an OCI Image Layout at path. If a layout
-// already exists at that path, it will add the image to the index.
-func saveOci(digest string, img v1.Image, ref name.Reference, path string) (string, error) {
+func saveTar(digest string, img v1.Image, ref name.Reference, path string) (string, Cleanup, error) {
 	finalPath := strings.Replace(filepath.Join(path, digest), ":", string(os.PathSeparator), 1)
+	tarPath := filepath.Join(finalPath, "archive.tar")
 	skill.Log.Debugf("Copying image to %s", finalPath)
 
-	if _, err := os.Stat(finalPath); !os.IsNotExist(err) {
-		return finalPath, nil
+	if _, err := os.Stat(tarPath); !os.IsNotExist(err) {
+		return finalPath, nil, nil
 	}
 	err := os.MkdirAll(finalPath, os.ModePerm)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
-	p, err := layout.FromPath(finalPath)
-	if err != nil {
-		p, err = layout.Write(finalPath, empty.Index)
-		if err != nil {
-			return "", err
+
+	c := make(chan v1.Update, 200)
+	errchan := make(chan error)
+	go func() {
+		if err := tarball.WriteToFile(tarPath, ref, img, tarball.WithProgress(c)); err != nil {
+			errchan <- errors.Wrapf(err, "failed to write image to tar")
+		}
+		errchan <- nil
+	}()
+
+	cleanup := func() {
+		e := os.Remove(tarPath)
+		if e != nil {
+			skill.Log.Warnf("Failed to delete tmp image archive %s", tarPath)
 		}
 	}
-	if err = p.AppendImage(img); err != nil {
-		return "", err
+
+	var update v1.Update
+	var pp int64
+	for {
+		select {
+		case update = <-c:
+			p := 100 * update.Complete / update.Total
+			if p%10 == 0 && pp != p {
+				skill.Log.WithFields(logrus.Fields{
+					"event":    "copy",
+					"total":    update.Total,
+					"complete": update.Complete,
+				}).Debugf("Copying image %3d%% %s/%s", p, humanize.Bytes(uint64(update.Complete)), humanize.Bytes(uint64(update.Total)))
+				pp = p
+			}
+		case err = <-errchan:
+			if err != nil {
+				return "", cleanup, err
+			} else {
+				skill.Log.WithFields(logrus.Fields{
+					"event":    "copy",
+					"total":    update.Total,
+					"complete": update.Complete,
+				}).Debugf("Copying image completed")
+				return finalPath, cleanup, nil
+			}
+		}
 	}
-	return finalPath, nil
 }
 
 func withAuth() remote.Option {

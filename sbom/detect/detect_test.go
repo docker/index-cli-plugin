@@ -38,7 +38,7 @@ func TestNodeDetector(t *testing.T) {
 		Location:    ociPath,
 	}
 	src, _, _ := source.New(i, nil, nil)
-	packages := nodePackageDetector([]types.Package{}, *src, lm)
+	packages := nodePackageDetector()([]types.Package{}, *src, lm)
 	if len(packages) != 1 {
 		t.Errorf("Expected package missing")
 	}

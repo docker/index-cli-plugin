@@ -52,7 +52,7 @@ func trivySbom(ociPath string, lm types.LayerMapping, resultChan chan<- types.In
 	}
 	defer cacheClient.Close()
 
-	img, err := image.NewArchiveImage(ociPath)
+	img, err := image.NewArchiveImage(ociPath + "/archive.tar")
 	if err != nil {
 		result.Status = types.Failed
 		result.Error = errors.Wrap(err, "failed to open archived image")
