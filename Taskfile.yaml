@@ -1,7 +1,7 @@
 version: '3'
 
 vars:
-  IMAGE_NAME: docker/index-cli-plugin:local
+  IMAGE_NAME: docker/docker-index:local
 
 tasks:
   go:test:
