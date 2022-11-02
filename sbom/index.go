@@ -58,31 +58,24 @@ func indexImageAsync(wg *sync.WaitGroup, image string, client client.APIClient, 
 }
 
 func IndexPath(path string, name string) (*types.Sbom, *v1.Image, error) {
-	skill.Log.Infof("Loading image from %s", path)
-	img, err := registry.ReadImage(path)
+	cache, err := registry.ReadImage(name, path)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "failed to read image")
 	}
-	skill.Log.Infof("Loaded image")
-	return indexImage(img, name, path)
+	return indexImage(cache)
 }
 
 func IndexImage(image string, client client.APIClient) (*types.Sbom, *v1.Image, error) {
-	skill.Log.Infof("Copying image %s", image)
-	img, path, cleanup, err := registry.SaveImage(image, client)
+	cache, err := registry.SaveImage(image, client)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "failed to copy image")
 	}
-	if cleanup != nil {
-		defer cleanup()
-	}
-	skill.Log.Infof("Copied image")
-	return indexImage(img, image, path)
+	return indexImage(cache)
 }
 
-func indexImage(img v1.Image, imageName, path string) (*types.Sbom, *v1.Image, error) {
+func indexImage(cache *registry.ImageCache) (*types.Sbom, *v1.Image, error) {
 	// see if we can re-use an existing sbom
-	sbomPath := filepath.Join(path, "sbom.json")
+	sbomPath := filepath.Join(cache.Path, "sbom.json")
 	if _, ok := os.LookupEnv("ATOMIST_NO_CACHE"); !ok {
 		if _, err := os.Stat(sbomPath); !os.IsNotExist(err) {
 			var sbom types.Sbom
@@ -92,49 +85,54 @@ func indexImage(img v1.Image, imageName, path string) (*types.Sbom, *v1.Image, e
 				if err == nil {
 					if sbom.Descriptor.SbomVersion == internal.FromBuild().SbomVersion && sbom.Descriptor.Version == internal.FromBuild().Version {
 						skill.Log.Infof(`Indexed %d packages`, len(sbom.Artifacts))
-						return &sbom, &img, nil
+						return &sbom, cache.Image, nil
 					}
 				}
 			}
 		}
 	}
 
-	lm := createLayerMapping(img)
+	err := cache.StoreImage()
+	defer cache.Cleanup()
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "failed to copy image")
+	}
+
+	lm := createLayerMapping(*cache.Image)
 	skill.Log.Debugf("Created layer mapping")
 
 	skill.Log.Info("Indexing")
 	trivyResultChan := make(chan types.IndexResult)
 	syftResultChan := make(chan types.IndexResult)
-	go trivySbom(path, lm, trivyResultChan)
-	go syftSbom(path, lm, syftResultChan)
+	go trivySbom(cache.ImagePath, lm, trivyResultChan)
+	go syftSbom(cache.ImagePath, lm, syftResultChan)
 
 	trivyResult := <-trivyResultChan
 	syftResult := <-syftResultChan
 
-	var err error
 	trivyResult.Packages, err = types.NormalizePackages(trivyResult.Packages)
 	syftResult.Packages, err = types.NormalizePackages(syftResult.Packages)
 	if err != nil {
-		return nil, nil, errors.Wrapf(err, "failed to normalize packagess: %s", imageName)
+		return nil, nil, errors.Wrapf(err, "failed to normalize packagess: %s", cache.Name)
 	}
 
 	packages := types.MergePackages(syftResult, trivyResult)
 
 	skill.Log.Infof(`Indexed %d packages`, len(packages))
 
-	manifest, _ := img.RawManifest()
-	config, _ := img.RawConfigFile()
-	c, _ := img.ConfigFile()
-	m, _ := img.Manifest()
-	d, _ := img.Digest()
+	manifest, _ := (*cache.Image).RawManifest()
+	config, _ := (*cache.Image).RawConfigFile()
+	c, _ := (*cache.Image).ConfigFile()
+	m, _ := (*cache.Image).Manifest()
+	d, _ := (*cache.Image).Digest()
 
 	var tag []string
-	if imageName != "" {
-		ref, err := name.ParseReference(imageName)
+	if cache.Name != "" {
+		ref, err := name.ParseReference(cache.Name)
 		if err != nil {
-			return nil, nil, errors.Wrapf(err, "failed to parse reference: %s", imageName)
+			return nil, nil, errors.Wrapf(err, "failed to parse reference: %s", cache.Name)
 		}
-		imageName = ref.Context().String()
+		cache.Name = ref.Context().String()
 		if !strings.HasPrefix(ref.Identifier(), "sha256:") {
 			tag = []string{ref.Identifier()}
 		}
@@ -145,7 +143,7 @@ func indexImage(img v1.Image, imageName, path string) (*types.Sbom, *v1.Image, e
 		Source: types.Source{
 			Type: "image",
 			Image: types.ImageSource{
-				Name:        imageName,
+				Name:        cache.Name,
 				Digest:      d.String(),
 				Manifest:    m,
 				Config:      c,
@@ -161,7 +159,7 @@ func indexImage(img v1.Image, imageName, path string) (*types.Sbom, *v1.Image, e
 			},
 		},
 		Descriptor: types.Descriptor{
-			Name:        "docker index",
+			Name:        "docker-index",
 			Version:     internal.FromBuild().Version,
 			SbomVersion: internal.FromBuild().SbomVersion,
 		},
@@ -176,7 +174,7 @@ func indexImage(img v1.Image, imageName, path string) (*types.Sbom, *v1.Image, e
 		_ = os.WriteFile(sbomPath, js, 0644)
 	}
 
-	return &sbom, &img, nil
+	return &sbom, cache.Image, nil
 }
 
 func createLayerMapping(img v1.Image) types.LayerMapping {

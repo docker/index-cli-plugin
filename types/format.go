@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package query
+package types
 
 import (
 	"fmt"
@@ -22,7 +22,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/docker/index-cli-plugin/types"
 	"github.com/gookit/color"
 	"github.com/xeonx/timeago"
 )
@@ -80,19 +79,19 @@ func FormatImage(image *Image) string {
 	}
 	if oc := officialContent(image); oc != "" {
 		e += " " + defaultColors.blue.Sprintf(oc)
-		if st := supportedTag(image); st != "" {
+		if st := SupportedTag(image); st != "" {
 			e += " " + defaultColors.red.Sprintf(st)
 		}
 	}
-	if ct := currentTag(image); ct != "" {
+	if ct := CurrentTag(image); ct != "" {
 		e += " " + defaultColors.red.Sprintf(ct)
 	}
 	e += "\n" + image.Digest
-	if cve := renderVulnerabilities(image); cve != "" {
+	if cve := RenderVulnerabilities(image); cve != "" {
 		e += " " + cve
 	}
 	e += " " + timeago.NoMax(timeago.English).Format(image.CreatedAt)
-	if url := renderCommit(image); url != "" {
+	if url := RenderCommit(image); url != "" {
 		e += "\n" + url
 	}
 	return e
@@ -128,7 +127,7 @@ func Tags(image *Image) []string {
 	return currentTags
 }
 
-func supportedTag(image *Image) string {
+func SupportedTag(image *Image) string {
 	if tagCount := len(image.Repository.SupportedTags); tagCount > 0 {
 		unsupportedTags := make([]string, 0)
 		for _, tag := range image.Tags {
@@ -143,7 +142,7 @@ func supportedTag(image *Image) string {
 	return ""
 }
 
-func currentTag(image *Image) string {
+func CurrentTag(image *Image) string {
 	currentTags := Tags(image)
 	if len(currentTags) > 0 {
 		for _, tag := range image.Tags {
@@ -165,7 +164,7 @@ func contains(s []string, str string) bool {
 	return false
 }
 
-func renderCommit(image *Image) string {
+func RenderCommit(image *Image) string {
 	if image.TeamId == "A11PU8L1C" {
 		return fmt.Sprintf("https://dso.docker.com/images/%s/digests/%s", image.Repository.Name, image.Digest)
 	} else if image.Commit.Sha != "" {
@@ -178,7 +177,7 @@ func renderCommit(image *Image) string {
 	return ""
 }
 
-func renderVulnerabilities(image *Image) string {
+func RenderVulnerabilities(image *Image) string {
 	if len(image.Report) > 0 {
 		report := image.Report[0]
 		if report.Total == -1 {
@@ -204,7 +203,7 @@ func renderVulnerabilities(image *Image) string {
 	return ""
 }
 
-func FormatCve(sb *types.Sbom, c *types.Cve) {
+func FormatCve(sb *Sbom, c *Cve) {
 	fmt.Println("")
 	fmt.Println(fmt.Sprintf("More information https://dso.docker.com/cve/%s", c.SourceId))
 	fmt.Println("")
@@ -236,8 +235,8 @@ func FormatRemediation(remediation []string) {
 	}
 }
 
-func FormatPackageRemediation(p types.Package, c types.Cve) string {
-	purl, _ := types.ToPackageUrl(p.Purl)
+func FormatPackageRemediation(p Package, c Cve) string {
+	purl, _ := ToPackageUrl(p.Purl)
 	if c.FixedBy != "not fixed" {
 		switch purl.Type {
 		case "alpine":

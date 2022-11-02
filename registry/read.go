@@ -17,17 +17,27 @@
 package registry
 
 import (
-	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/atomist-skills/go-skill"
 	"github.com/google/go-containerregistry/pkg/v1/layout"
 	"github.com/pkg/errors"
 )
 
-func ReadImage(path string) (v1.Image, error) {
+func ReadImage(name string, path string) (*ImageCache, error) {
+	skill.Log.Infof("Loading image from %s", path)
 	index, err := layout.ImageIndexFromPath(path)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to read manifest index at %s", path)
 	}
 	mani, err := index.IndexManifest()
 	hash := mani.Manifests[0].Digest
-	return index.Image(hash)
+	img, _ := index.Image(hash)
+	skill.Log.Infof("Loaded image")
+	return &ImageCache{
+		Name:      name,
+		Path:      path,
+		Image:     &img,
+		ImagePath: path,
+		Ref:       nil,
+		copy:      false,
+	}, nil
 }

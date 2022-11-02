@@ -222,7 +222,7 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 
 			if len(*cves) > 0 {
 				for _, c := range *cves {
-					query.FormatCve(sb, &c)
+					types.FormatCve(sb, &c)
 
 					if !remediate {
 						continue
@@ -239,7 +239,7 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 								}
 							}
 
-							if rem := query.FormatPackageRemediation(p, c); rem != "" {
+							if rem := types.FormatPackageRemediation(p, c); rem != "" {
 								remediation = append(remediation, rem)
 							}
 						}
@@ -250,14 +250,14 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 					defer s.Stop()
 					baseImages, index, _ := query.Detect(img, true, workspace, apiKey)
 					s.Stop()
-					var baseImage *query.Image
+					var baseImage *types.Image
 					if layerIndex <= index && baseImages != nil && len(*baseImages) > 0 {
 						baseImage = &(*baseImages)[0]
 
 						fmt.Println("")
 						fmt.Println("installed in base image")
 						fmt.Println("")
-						fmt.Println(query.FormatImage(baseImage))
+						fmt.Println(types.FormatImage(baseImage))
 					}
 
 					if baseImage != nil {
@@ -268,13 +268,13 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 						if aBaseImage != nil && len(*aBaseImage) > 0 {
 							e := []string{fmt.Sprintf("Update base image\n\nAlternative base images not vulnerable to %s", c.SourceId)}
 							for _, a := range *aBaseImage {
-								e = append(e, query.FormatImage(&a))
+								e = append(e, types.FormatImage(&a))
 							}
 							remediation = append(remediation, strings.Join(e, "\n\n"))
 						}
 					}
 
-					query.FormatRemediation(remediation)
+					types.FormatRemediation(remediation)
 				}
 
 				os.Exit(1)

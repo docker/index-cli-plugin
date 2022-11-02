@@ -59,93 +59,37 @@ func (i ImageId) String() string {
 	return i.name
 }
 
-type Cleanup = func()
+type ImageCache struct {
+	Name      string
+	Path      string
+	Image     *v1.Image
+	ImagePath string
+	Ref       *name.Reference
 
-// SaveImage stores the v1.Image at path returned in OCI format
-func SaveImage(image string, client client.APIClient) (v1.Image, string, Cleanup, error) {
-	ref, err := name.ParseReference(image)
-	if err != nil {
-		return nil, "", nil, errors.Wrapf(err, "failed to parse reference: %s", image)
-	}
-
-	var path string
-	if v, ok := os.LookupEnv("ATOMIST_CACHE_DIR"); ok {
-		path = filepath.Join(v, "docker-index")
-	} else {
-		path = filepath.Join(os.TempDir(), "docker-index")
-	}
-
-	desc, err := remote.Get(ref, withAuth())
-	if err != nil {
-		img, err := daemon.Image(ImageId{name: image}, daemon.WithClient(client))
-		if err != nil {
-			return nil, "", nil, errors.Wrapf(err, "failed to pull image: %s", image)
-		} else {
-			im, _, err := client.ImageInspectWithRaw(context.Background(), image)
-			if err != nil {
-				return nil, "", nil, errors.Wrapf(err, "failed to get local image: %s", image)
-			}
-			path, cleanup, err := saveTar(im.ID, img, ref, path)
-			if err != nil {
-				return nil, "", nil, errors.Wrapf(err, "failed to save image: %s", image)
-			}
-			return img, path, cleanup, nil
-		}
-	} else {
-		img, err := desc.Image()
-		if err != nil {
-			return nil, "", nil, errors.Wrapf(err, "failed to pull image: %s", image)
-		}
-		var digest string
-		identifier := ref.Identifier()
-		if strings.HasPrefix(identifier, "sha256:") {
-			digest = identifier
-		} else {
-			digestHash, _ := img.Digest()
-			digest = digestHash.String()
-		}
-		path, cleanup, err := saveTar(digest, img, ref, path)
-		if err != nil {
-			return nil, "", nil, errors.Wrapf(err, "failed to save image: %s", image)
-		}
-		return img, path, cleanup, nil
-	}
+	copy bool
 }
 
-func saveTar(digest string, img v1.Image, ref name.Reference, path string) (string, Cleanup, error) {
-	finalPath := strings.Replace(filepath.Join(path, digest), ":", string(os.PathSeparator), 1)
-	tarPath := filepath.Join(finalPath, "archive.tar")
-	skill.Log.Debugf("Copying image to %s", finalPath)
-
-	if _, err := os.Stat(tarPath); !os.IsNotExist(err) {
-		return finalPath, nil, nil
+func (c *ImageCache) StoreImage() error {
+	if !c.copy {
+		return nil
 	}
-	err := os.MkdirAll(finalPath, os.ModePerm)
-	if err != nil {
-		return "", nil, err
-	}
-
-	c := make(chan v1.Update, 200)
+	skill.Log.Infof("Copying image %s", c.Name)
+	skill.Log.Debugf("Copying image to %s", c.ImagePath)
+	u := make(chan v1.Update, 200)
 	errchan := make(chan error)
 	go func() {
-		if err := tarball.WriteToFile(tarPath, ref, img, tarball.WithProgress(c)); err != nil {
-			errchan <- errors.Wrapf(err, "failed to write image to tar")
+		if err := tarball.WriteToFile(c.ImagePath, *c.Ref, *c.Image, tarball.WithProgress(u)); err != nil {
+			errchan <- errors.Wrapf(err, "failed to write tmp image archive")
 		}
 		errchan <- nil
 	}()
 
-	cleanup := func() {
-		// e := os.Remove(tarPath)
-		//if e != nil {
-		//	skill.Log.Warnf("Failed to delete tmp image archive %s", tarPath)
-		//}
-	}
-
 	var update v1.Update
+	var err error
 	var pp int64
 	for {
 		select {
-		case update = <-c:
+		case update = <-u:
 			p := 100 * update.Complete / update.Total
 			if p%10 == 0 && pp != p {
 				skill.Log.WithFields(logrus.Fields{
@@ -157,16 +101,106 @@ func saveTar(digest string, img v1.Image, ref name.Reference, path string) (stri
 			}
 		case err = <-errchan:
 			if err != nil {
-				return "", cleanup, err
+				return err
 			} else {
 				skill.Log.WithFields(logrus.Fields{
 					"event":    "copy",
 					"total":    update.Total,
 					"complete": update.Complete,
 				}).Debugf("Copying image completed")
-				return finalPath, cleanup, nil
+				skill.Log.Infof("Copied image")
+				return nil
 			}
 		}
+	}
+}
+
+func (c *ImageCache) Cleanup() {
+	if !c.copy {
+		return
+	}
+	e := os.Remove(c.ImagePath)
+	if e != nil {
+		skill.Log.Warnf("Failed to delete tmp image archive %s", c.ImagePath)
+	}
+}
+
+// SaveImage stores the v1.Image at path returned in OCI format
+func SaveImage(image string, client client.APIClient) (*ImageCache, error) {
+	ref, err := name.ParseReference(image)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to parse reference: %s", image)
+	}
+
+	var path string
+	if v, ok := os.LookupEnv("ATOMIST_CACHE_DIR"); ok {
+		path = filepath.Join(v, "docker-index")
+	} else {
+		path = filepath.Join(os.TempDir(), "docker-index")
+	}
+
+	createPaths := func(digest string) (string, string, error) {
+		finalPath := strings.Replace(filepath.Join(path, digest), ":", string(os.PathSeparator), 1)
+		tarPath := filepath.Join(finalPath, "archive.tar")
+
+		if _, err := os.Stat(tarPath); !os.IsNotExist(err) {
+			return finalPath, tarPath, nil
+		}
+		err := os.MkdirAll(finalPath, os.ModePerm)
+		if err != nil {
+			return "", "", err
+		}
+		return finalPath, tarPath, nil
+	}
+
+	desc, err := remote.Get(ref, withAuth())
+	if err != nil {
+		img, err := daemon.Image(ImageId{name: image}, daemon.WithClient(client))
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to pull image: %s", image)
+		} else {
+			im, _, err := client.ImageInspectWithRaw(context.Background(), image)
+			if err != nil {
+				return nil, errors.Wrapf(err, "failed to get local image: %s", image)
+			}
+			path, imagePath, err := createPaths(im.ID)
+			if err != nil {
+				return nil, errors.Wrapf(err, "failed to create cache paths")
+			}
+			return &ImageCache{
+				Name:      image,
+				Path:      path,
+				Image:     &img,
+				Ref:       &ref,
+				ImagePath: imagePath,
+				copy:      true,
+			}, nil
+		}
+	} else {
+		img, err := desc.Image()
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to pull image: %s", image)
+		}
+		var digest string
+		identifier := ref.Identifier()
+		if strings.HasPrefix(identifier, "sha256:") {
+			digest = identifier
+		} else {
+			digestHash, _ := img.Digest()
+			digest = digestHash.String()
+		}
+		path, imagePath, err := createPaths(digest)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to create cache paths")
+		}
+		return &ImageCache{
+			Name:      image,
+			Path:      path,
+			Image:     &img,
+			Ref:       &ref,
+			ImagePath: imagePath,
+			copy:      true,
+		}, nil
 	}
 }
 
