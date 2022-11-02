@@ -25,7 +25,7 @@ import (
 
 	"github.com/atomist-skills/go-skill"
 	"github.com/docker/cli/cli/command"
-	"github.com/docker/index-cli-plugin/util"
+	"github.com/docker/index-cli-plugin/internal"
 	"github.com/dustin/go-humanize"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -88,14 +88,14 @@ func (c *ImageCache) StoreImage() error {
 	var update v1.Update
 	var err error
 	var pp int64
-	spinner := util.StartSpinner("info", "Copying image", c.cli.Out().IsTerminal())
+	spinner := internal.StartSpinner("info", "Copying image", c.cli.Out().IsTerminal())
 	defer spinner.Stop()
 	for {
 		select {
 		case update = <-u:
 			p := 100 * update.Complete / update.Total
 			if pp != p {
-				spinner.WithFields(util.Fields{
+				spinner.WithFields(internal.Fields{
 					"event":    "progress",
 					"total":    update.Total,
 					"complete": update.Complete,

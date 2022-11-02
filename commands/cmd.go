@@ -28,10 +28,10 @@ import (
 	"github.com/docker/cli/cli"
 	"github.com/docker/cli/cli-plugins/plugin"
 	"github.com/docker/cli/cli/command"
+	"github.com/docker/index-cli-plugin/internal"
 	"github.com/docker/index-cli-plugin/query"
 	"github.com/docker/index-cli-plugin/sbom"
 	"github.com/docker/index-cli-plugin/types"
-	"github.com/docker/index-cli-plugin/util"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/moby/term"
 	"github.com/pkg/errors"
@@ -251,7 +251,7 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 					}
 
 					// see if the package comes in via the base image
-					s := util.StartInfoSpinner("Detecting base image", dockerCli.Out().IsTerminal())
+					s := internal.StartInfoSpinner("Detecting base image", dockerCli.Out().IsTerminal())
 					defer s.Stop()
 					baseImages, index, _ := query.Detect(img, true, workspace, apiKey)
 					s.Stop()
@@ -266,7 +266,7 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 					}
 
 					if baseImage != nil {
-						s := util.StartInfoSpinner("Finding alternative base images", dockerCli.Out().IsTerminal())
+						s := internal.StartInfoSpinner("Finding alternative base images", dockerCli.Out().IsTerminal())
 						defer s.Stop()
 						aBaseImage, _ := query.ForBaseImageWithoutCve(c.SourceId, baseImage.Repository.Name, img, workspace, apiKey)
 						s.Stop()

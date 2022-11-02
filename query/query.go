@@ -86,7 +86,15 @@ func QueryCves(sb *types.Sbom, cve string, workspace string, apiKey string) (*[]
 		} else {
 			skill.Log.Infof("Detected %d vulnerabilities", len(result.Query.Data[0].Cves))
 		}
-		return &result.Query.Data[0].Cves, nil
+		fcves := internal.UniqueBy(result.Query.Data[0].Cves, func(cve types.Cve) string {
+			if cve.Cve != nil {
+				return fmt.Sprintf("%s %s", cve.Purl, cve.Cve.SourceId)
+			} else {
+				return fmt.Sprintf("%s %s", cve.Purl, cve.Advisory.SourceId)
+			}
+		})
+		return &fcves, nil
+
 	} else {
 		return nil, nil
 	}

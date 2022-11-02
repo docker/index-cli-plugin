@@ -54,3 +54,19 @@ func Contains[K interface{}](slice []K, value K) bool {
 	}
 	return false
 }
+
+func UniqueBy[K interface{}](slice []K, by func(K) string) []K {
+	values := make(map[string]K)
+	for _, s := range slice {
+		k := by(s)
+		if _, ok := values[k]; !ok {
+			values[k] = s
+		}
+	}
+
+	v := make([]K, 0, len(values))
+	for _, value := range values {
+		v = append(v, value)
+	}
+	return v
+}

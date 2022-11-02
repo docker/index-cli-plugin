@@ -220,8 +220,8 @@ func FormatCve(sb *Sbom, c *Cve) {
 			for i, l := range sb.Source.Image.Config.RootFS.DiffIDs {
 				if l.String() == loc.DiffId {
 					h := sb.Source.Image.Config.History[i]
-					fmt.Println(fmt.Sprintf("Instruction: %s", h.CreatedBy))
-					fmt.Println(fmt.Sprintf("Layer %d: %s", i, loc.Digest))
+					fmt.Println(formatCreatedBy(h.CreatedBy))
+					fmt.Println(fmt.Sprintf("%d: %s", i, loc.Digest))
 				}
 			}
 		}
@@ -342,4 +342,15 @@ func ToSeverityInt(cve Cve) int {
 	default:
 		return 0
 	}
+}
+
+func formatCreatedBy(createdBy string) string {
+	trim := func(prefix string) {
+		if strings.HasPrefix(createdBy, prefix) {
+			createdBy = strings.TrimSpace(createdBy[len(prefix):])
+		}
+	}
+	trim("/bin/sh -c")
+	trim("#(nop)")
+	return createdBy
 }

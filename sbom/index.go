@@ -30,7 +30,6 @@ import (
 	"github.com/docker/index-cli-plugin/query"
 	"github.com/docker/index-cli-plugin/registry"
 	"github.com/docker/index-cli-plugin/types"
-	"github.com/docker/index-cli-plugin/util"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/pkg/errors"
@@ -102,7 +101,7 @@ func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, *v1.I
 	lm := createLayerMapping(*cache.Image)
 	skill.Log.Debugf("Created layer mapping")
 
-	s := util.StartSpinner("info", "Indexing", cli.Out().IsTerminal())
+	s := internal.StartSpinner("info", "Indexing", cli.Out().IsTerminal())
 	defer s.Stop()
 	trivyResultChan := make(chan types.IndexResult)
 	syftResultChan := make(chan types.IndexResult)
