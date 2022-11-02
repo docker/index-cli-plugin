@@ -204,10 +204,13 @@ func RenderVulnerabilities(image *Image) string {
 }
 
 func FormatCve(sb *Sbom, c *Cve) {
+	sourceId := c.SourceId
+	if c.Cve != nil {
+		sourceId = c.Cve.SourceId
+	}
 	fmt.Println("")
-	fmt.Println(fmt.Sprintf("More information https://dso.docker.com/cve/%s", c.SourceId))
-	fmt.Println("")
-	fmt.Println(defaultColors.underline.Sprintf(fmt.Sprintf("Detected %s in", c.SourceId)))
+	fmt.Println(defaultColors.underline.Sprintf(fmt.Sprintf("Detected %s %s", sourceId, ColorizeSeverity(ToSeverity(*c)))))
+	fmt.Println(fmt.Sprintf("https://dso.docker.com/cve/%s", sourceId))
 	fmt.Println("")
 	purl := c.Purl
 	for _, p := range sb.Artifacts {
@@ -262,4 +265,81 @@ RUN apt-get update && apt-get install -y \\
 		}
 	}
 	return ""
+}
+
+func ColorizeStringBySeverity(value string, severity string) string {
+	switch severity {
+	case "CRITICAL":
+		return defaultColors.critical.Sprintf(value)
+	case "HIGH":
+		return defaultColors.high.Sprintf(value)
+	case "MEDIUM":
+		return defaultColors.medium.Sprintf(value)
+	case "LOW":
+		return defaultColors.low.Sprintf(value)
+	default:
+		return value
+	}
+}
+
+func ColorizeSeverity(severity string) string {
+	label := fmt.Sprintf(" %s ", strings.TrimSpace(severity))
+	switch severity {
+	case "CRITICAL":
+		return defaultColors.critical.Sprintf(label)
+	case "HIGH":
+		return defaultColors.high.Sprintf(label)
+	case "MEDIUM":
+		return defaultColors.medium.Sprintf(label)
+	case "LOW":
+		return defaultColors.low.Sprintf(label)
+	default:
+		return severity
+	}
+}
+
+func ToSeverity(cve Cve) string {
+	findSeverity := func(adv *Advisory) (string, bool) {
+		if adv == nil {
+			return "", false
+		}
+		for _, r := range (*adv).References {
+			if r.Source == "atomist" {
+				for _, s := range r.Scores {
+					if s.Type == "atm_severity" {
+						v := s.Value
+						if v != "SEVERITY_UNSPECIFIED" {
+							return v, true
+						}
+					}
+				}
+			}
+		}
+		return "", false
+	}
+
+	if severity, ok := findSeverity(cve.Cve); ok {
+		return severity
+	}
+	if severity, ok := findSeverity(cve.Advisory); ok {
+		return severity
+	}
+
+	return "IN TRIAGE"
+}
+
+func ToSeverityInt(cve Cve) int {
+	severity := ToSeverity(cve)
+	switch severity {
+	case "CRITICAL":
+		return 4
+	case "HIGH":
+		return 3
+	case "MEDIUM":
+		return 2
+	case "LOW":
+		return 1
+	default:
+		return 0
+	}
 }

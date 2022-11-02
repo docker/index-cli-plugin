@@ -234,67 +234,6 @@ type CveEntry struct {
 
 type CveMap map[string]CveEntry
 
-func colorizeSeverity(severity string) string {
-	switch severity {
-	case "CRITICAL":
-		return defaultColors.critical.Sprintf(severity)
-	case "HIGH":
-		return defaultColors.high.Sprintf(severity)
-	case "MEDIUM":
-		return defaultColors.medium.Sprintf(severity)
-	case "LOW":
-		return defaultColors.low.Sprintf(severity)
-	default:
-		return severity
-	}
-}
-
-func toSeverity(cve types.Cve) string {
-	findSeverity := func(adv *types.Advisory) (string, bool) {
-		if adv == nil {
-			return "", false
-		}
-		for _, r := range (*adv).References {
-			if r.Source == "atomist" {
-				for _, s := range r.Scores {
-					if s.Type == "atm_severity" {
-						v := s.Value
-						if v != "SEVERITY_UNSPECIFIED" {
-							return v, true
-						}
-					}
-				}
-			}
-		}
-		return "", false
-	}
-
-	if severity, ok := findSeverity(cve.Cve); ok {
-		return severity
-	}
-	if severity, ok := findSeverity(cve.Advisory); ok {
-		return severity
-	}
-
-	return "IN TRIAGE"
-}
-
-func toSeverityInt(cve types.Cve) int {
-	severity := toSeverity(cve)
-	switch severity {
-	case "CRITICAL":
-		return 4
-	case "HIGH":
-		return 3
-	case "MEDIUM":
-		return 2
-	case "LOW":
-		return 1
-	default:
-		return 0
-	}
-}
-
 func diffCves(result1, result2 ImageIndexResult) {
 	dc := 0
 	cves := make(CveMap)
@@ -371,7 +310,7 @@ func diffCves(result1, result2 ImageIndexResult) {
 			} else if len(c1) == 0 {
 				cl = defaultColors.added.Sprintf(k)
 			}
-			t.AppendRow(table.Row{k, toSeverityInt(cve), cl, colorizeSeverity(toSeverity(cve)), strings.Join(c1, "\n"), strings.Join(c2, "\n")})
+			t.AppendRow(table.Row{k, types.ToSeverityInt(cve), cl, types.ColorizeSeverity(types.ToSeverity(cve)), strings.Join(c1, "\n"), strings.Join(c2, "\n")})
 			dc++
 		}
 	}
