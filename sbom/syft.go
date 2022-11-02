@@ -196,6 +196,20 @@ func toPackage(p pkg2.Package, rels []artifact.Relationship, qualifiers map[stri
 	case pkg2.RpmMetadataType:
 		md := p.Metadata.(pkg2.RpmMetadata)
 		pkg.Size = md.Size
+		if md.SourceRpm != "" {
+			name := make([]string, 0)
+			for _, p := range strings.Split(md.SourceRpm, "-") {
+				if p[0] >= '0' && p[0] <= '9' {
+					break
+				} else {
+					name = append(name, p)
+				}
+			}
+			sourceNameAndVersion = sourcePackage{
+				name:         strings.Join(name, "-"),
+				relationship: "parent",
+			}
+		}
 	case pkg2.PythonPackageMetadataType:
 		md := p.Metadata.(pkg2.PythonPackageMetadata)
 		pkg.Author = md.Author
