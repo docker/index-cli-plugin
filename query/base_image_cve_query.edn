@@ -54,7 +54,9 @@
                        )
 
                      (not-join [?image ?source-id]
-                       [?v :vulnerability/source-id ?source-id]
+                       (or-join [?v ?source-id]
+                         [?v :vulnerability/source-id ?source-id]
+                         [?v :vulnerability/cve-id ?source-id])
                        [?v :vulnerability/source ?source]
                        [?v :vulnerability/advisories ?adv]
                        [(missing? $ ?v :vulnerability/withdrawn-at)]

@@ -22,7 +22,12 @@
                      :keys purl source-id source vulnerable-range url fixed-by v cve
                      :in $ $b %% ?ctx [?packages ?source-id]
                      :where
-                     [?v :vulnerability/source-id ?source-id]
+
+                     (or-join [?v ?source-id]
+                       [?v :vulnerability/cve-id ?source-id]
+                       (and
+                         [(missing? $ ?v :vulnerability/cve-id)]
+                         [?v :vulnerability/source-id ?source-id]))
                      [?v :vulnerability/source ?source]
                      [?v :vulnerability/advisories ?adv]
 
@@ -34,12 +39,6 @@
                      [?adv :vulnerability.advisory/versions ?versions]
                      [?versions :vulnerability.advisory.version/vulnerable-range ?range]
                      (range-satisfied? ?type ?version ?source ?range)
-
-                     (or-join [?v ?source-id]
-                       [?v :vulnerability/cve-id ?source-id]
-                       (and
-                         [(missing? $ ?v :vulnerability/cve-id)]
-                         [?v :vulnerability/source-id ?source-id]))
 
                      (or-join [?versions ?fixed-by]
                        [?versions :vulnerability.advisory.version/fixed-by ?fixed-by]
