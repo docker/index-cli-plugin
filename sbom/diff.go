@@ -22,7 +22,7 @@ import (
 	"sync"
 
 	"github.com/anchore/packageurl-go"
-	"github.com/docker/docker/client"
+	"github.com/docker/cli/cli/command"
 	"github.com/docker/index-cli-plugin/internal"
 	"github.com/docker/index-cli-plugin/types"
 	"github.com/gookit/color"
@@ -58,12 +58,12 @@ func init() {
 	}
 }
 
-func DiffImages(image1 string, image2 string, client client.APIClient, workspace string, apikey string) error {
+func DiffImages(image1 string, image2 string, cli command.Cli, workspace string, apikey string) error {
 	resultChan := make(chan ImageIndexResult, 2)
 	var wg sync.WaitGroup
 	wg.Add(2)
-	go indexImageAsync(&wg, image1, client, resultChan)
-	go indexImageAsync(&wg, image2, client, resultChan)
+	go indexImageAsync(&wg, image1, cli, resultChan)
+	go indexImageAsync(&wg, image2, cli, resultChan)
 	wg.Wait()
 	close(resultChan)
 

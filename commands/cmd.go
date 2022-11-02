@@ -31,6 +31,7 @@ import (
 	"github.com/docker/index-cli-plugin/query"
 	"github.com/docker/index-cli-plugin/sbom"
 	"github.com/docker/index-cli-plugin/types"
+	"github.com/docker/index-cli-plugin/util"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/moby/term"
 	"github.com/pkg/errors"
@@ -57,10 +58,14 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 	}
 
 	skill.Log.SetOutput(os.Stderr)
-	skill.Log.SetFormatter(&logrus.TextFormatter{
-		DisableTimestamp:       true,
-		DisableLevelTruncation: true,
-	})
+	if dockerCli.Out().IsTerminal() {
+		skill.Log.SetFormatter(&logrus.TextFormatter{
+			DisableTimestamp:       true,
+			DisableLevelTruncation: true,
+		})
+	} else {
+		skill.Log.SetFormatter(&logrus.JSONFormatter{})
+	}
 
 	config := dockerCli.ConfigFile()
 
@@ -112,9 +117,9 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 			var sb *types.Sbom
 
 			if ociDir == "" {
-				sb, _, err = sbom.IndexImage(image, dockerCli.Client())
+				sb, _, err = sbom.IndexImage(image, dockerCli)
 			} else {
-				sb, _, err = sbom.IndexPath(ociDir, image)
+				sb, _, err = sbom.IndexPath(ociDir, image, dockerCli)
 			}
 			if err != nil {
 				return err
@@ -175,9 +180,9 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 			var sb *types.Sbom
 			var img *v1.Image
 			if ociDir == "" {
-				sb, img, err = sbom.IndexImage(image, dockerCli.Client())
+				sb, img, err = sbom.IndexImage(image, dockerCli)
 			} else {
-				sb, img, err = sbom.IndexPath(ociDir, image)
+				sb, img, err = sbom.IndexPath(ociDir, image, dockerCli)
 			}
 			if err != nil {
 				return err
@@ -206,9 +211,9 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 			var img *v1.Image
 
 			if ociDir == "" {
-				sb, img, err = sbom.IndexImage(image, dockerCli.Client())
+				sb, img, err = sbom.IndexImage(image, dockerCli)
 			} else {
-				sb, img, err = sbom.IndexPath(ociDir, image)
+				sb, img, err = sbom.IndexPath(ociDir, image, dockerCli)
 			}
 			if err != nil {
 				return err
@@ -246,7 +251,7 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 					}
 
 					// see if the package comes in via the base image
-					s := StartInfoSpinner("Detecting base image")
+					s := util.StartInfoSpinner("Detecting base image", dockerCli.Out().IsTerminal())
 					defer s.Stop()
 					baseImages, index, _ := query.Detect(img, true, workspace, apiKey)
 					s.Stop()
@@ -261,7 +266,7 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 					}
 
 					if baseImage != nil {
-						s := StartInfoSpinner("Finding alternative base images")
+						s := util.StartInfoSpinner("Finding alternative base images", dockerCli.Out().IsTerminal())
 						defer s.Stop()
 						aBaseImage, _ := query.ForBaseImageWithoutCve(c.SourceId, baseImage.Repository.Name, img, workspace, apiKey)
 						s.Stop()
@@ -294,7 +299,7 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 		Use:   "diff [OPTIONS]",
 		Short: "Diff images",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return sbom.DiffImages(args[0], args[1], dockerCli.Client(), "", "")
+			return sbom.DiffImages(args[0], args[1], dockerCli, "", "")
 		},
 	}
 

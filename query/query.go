@@ -81,7 +81,7 @@ func QueryCves(sb *types.Sbom, cve string, workspace string, apiKey string) (*[]
 		return nil, errors.Wrapf(err, "failed to unmarshal response")
 	}
 	if len(result.Query.Data) > 0 {
-		if len(result.Query.Data) == 1 {
+		if len(result.Query.Data[0].Cves) == 1 {
 			skill.Log.Infof("Detected %d vulnerability", len(result.Query.Data[0].Cves))
 		} else {
 			skill.Log.Infof("Detected %d vulnerabilities", len(result.Query.Data[0].Cves))
@@ -99,6 +99,7 @@ func query(query string, name string, workspace string, apiKey string) (*http.Re
 
 	}
 	query = fmt.Sprintf(`{:queries [{:name "query" :query %s}]}`, query)
+	skill.Log.Debugf("Query %s", query)
 	client := &http.Client{}
 	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(query))
 	if err != nil {
@@ -117,5 +118,6 @@ func query(query string, name string, workspace string, apiKey string) (*http.Re
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to run query")
 	}
+	skill.Log.Debugf("Query response %s", resp.Status)
 	return resp, nil
 }

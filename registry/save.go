@@ -18,12 +18,14 @@ package registry
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/atomist-skills/go-skill"
-	"github.com/docker/docker/client"
+	"github.com/docker/cli/cli/command"
+	"github.com/docker/index-cli-plugin/util"
 	"github.com/dustin/go-humanize"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -32,7 +34,6 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 )
 
 type ImageId struct {
@@ -67,13 +68,13 @@ type ImageCache struct {
 	Ref       *name.Reference
 
 	copy bool
+	cli  command.Cli
 }
 
 func (c *ImageCache) StoreImage() error {
 	if !c.copy {
 		return nil
 	}
-	skill.Log.Infof("Copying image %s", c.Name)
 	skill.Log.Debugf("Copying image to %s", c.ImagePath)
 	u := make(chan v1.Update, 200)
 	errchan := make(chan error)
@@ -87,27 +88,25 @@ func (c *ImageCache) StoreImage() error {
 	var update v1.Update
 	var err error
 	var pp int64
+	spinner := util.StartSpinner("info", "Copying image", c.cli.Out().IsTerminal())
+	defer spinner.Stop()
 	for {
 		select {
 		case update = <-u:
 			p := 100 * update.Complete / update.Total
-			if p%10 == 0 && pp != p {
-				skill.Log.WithFields(logrus.Fields{
-					"event":    "copy",
+			if pp != p {
+				spinner.WithFields(util.Fields{
+					"event":    "progress",
 					"total":    update.Total,
 					"complete": update.Complete,
-				}).Debugf("Copying image %3d%% %s/%s", p, humanize.Bytes(uint64(update.Complete)), humanize.Bytes(uint64(update.Total)))
+				}).Update(fmt.Sprintf("Copying image %d%% %s/%s", p, humanize.Bytes(uint64(update.Complete)), humanize.Bytes(uint64(update.Total))))
 				pp = p
 			}
 		case err = <-errchan:
 			if err != nil {
 				return err
 			} else {
-				skill.Log.WithFields(logrus.Fields{
-					"event":    "copy",
-					"total":    update.Total,
-					"complete": update.Complete,
-				}).Debugf("Copying image completed")
+				spinner.Stop()
 				skill.Log.Infof("Copied image")
 				return nil
 			}
@@ -126,7 +125,7 @@ func (c *ImageCache) Cleanup() {
 }
 
 // SaveImage stores the v1.Image at path returned in OCI format
-func SaveImage(image string, client client.APIClient) (*ImageCache, error) {
+func SaveImage(image string, cli command.Cli) (*ImageCache, error) {
 	ref, err := name.ParseReference(image)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to parse reference: %s", image)
@@ -155,11 +154,11 @@ func SaveImage(image string, client client.APIClient) (*ImageCache, error) {
 
 	desc, err := remote.Get(ref, withAuth())
 	if err != nil {
-		img, err := daemon.Image(ImageId{name: image}, daemon.WithClient(client))
+		img, err := daemon.Image(ImageId{name: image}, daemon.WithClient(cli.Client()))
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to pull image: %s", image)
 		} else {
-			im, _, err := client.ImageInspectWithRaw(context.Background(), image)
+			im, _, err := cli.Client().ImageInspectWithRaw(context.Background(), image)
 			if err != nil {
 				return nil, errors.Wrapf(err, "failed to get local image: %s", image)
 			}
@@ -174,6 +173,7 @@ func SaveImage(image string, client client.APIClient) (*ImageCache, error) {
 				Ref:       &ref,
 				ImagePath: imagePath,
 				copy:      true,
+				cli:       cli,
 			}, nil
 		}
 	} else {
@@ -200,6 +200,7 @@ func SaveImage(image string, client client.APIClient) (*ImageCache, error) {
 			Ref:       &ref,
 			ImagePath: imagePath,
 			copy:      true,
+			cli:       cli,
 		}, nil
 	}
 }

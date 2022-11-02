@@ -25,11 +25,12 @@ import (
 	"sync"
 
 	"github.com/atomist-skills/go-skill"
-	"github.com/docker/docker/client"
+	"github.com/docker/cli/cli/command"
 	"github.com/docker/index-cli-plugin/internal"
 	"github.com/docker/index-cli-plugin/query"
 	"github.com/docker/index-cli-plugin/registry"
 	"github.com/docker/index-cli-plugin/types"
+	"github.com/docker/index-cli-plugin/util"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/pkg/errors"
@@ -42,9 +43,9 @@ type ImageIndexResult struct {
 	Error error
 }
 
-func indexImageAsync(wg *sync.WaitGroup, image string, client client.APIClient, resultChan chan<- ImageIndexResult) {
+func indexImageAsync(wg *sync.WaitGroup, image string, cli command.Cli, resultChan chan<- ImageIndexResult) {
 	defer wg.Done()
-	sbom, img, err := IndexImage(image, client)
+	sbom, img, err := IndexImage(image, cli)
 	cves, err := query.QueryCves(sbom, "", "", "")
 	if err == nil {
 		sbom.Vulnerabilities = *cves
@@ -57,23 +58,23 @@ func indexImageAsync(wg *sync.WaitGroup, image string, client client.APIClient, 
 	}
 }
 
-func IndexPath(path string, name string) (*types.Sbom, *v1.Image, error) {
+func IndexPath(path string, name string, cli command.Cli) (*types.Sbom, *v1.Image, error) {
 	cache, err := registry.ReadImage(name, path)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "failed to read image")
 	}
-	return indexImage(cache)
+	return indexImage(cache, cli)
 }
 
-func IndexImage(image string, client client.APIClient) (*types.Sbom, *v1.Image, error) {
-	cache, err := registry.SaveImage(image, client)
+func IndexImage(image string, cli command.Cli) (*types.Sbom, *v1.Image, error) {
+	cache, err := registry.SaveImage(image, cli)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "failed to copy image")
 	}
-	return indexImage(cache)
+	return indexImage(cache, cli)
 }
 
-func indexImage(cache *registry.ImageCache) (*types.Sbom, *v1.Image, error) {
+func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, *v1.Image, error) {
 	// see if we can re-use an existing sbom
 	sbomPath := filepath.Join(cache.Path, "sbom.json")
 	if _, ok := os.LookupEnv("ATOMIST_NO_CACHE"); !ok {
@@ -101,7 +102,8 @@ func indexImage(cache *registry.ImageCache) (*types.Sbom, *v1.Image, error) {
 	lm := createLayerMapping(*cache.Image)
 	skill.Log.Debugf("Created layer mapping")
 
-	skill.Log.Info("Indexing")
+	s := util.StartSpinner("info", "Indexing", cli.Out().IsTerminal())
+	defer s.Stop()
 	trivyResultChan := make(chan types.IndexResult)
 	syftResultChan := make(chan types.IndexResult)
 	go trivySbom(cache.ImagePath, lm, trivyResultChan)
@@ -118,6 +120,7 @@ func indexImage(cache *registry.ImageCache) (*types.Sbom, *v1.Image, error) {
 
 	packages := types.MergePackages(syftResult, trivyResult)
 
+	s.Stop()
 	skill.Log.Infof(`Indexed %d packages`, len(packages))
 
 	manifest, _ := (*cache.Image).RawManifest()
