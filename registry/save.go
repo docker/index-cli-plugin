@@ -62,8 +62,8 @@ func (i ImageId) String() string {
 }
 
 type ImageCache struct {
+	Digest    string
 	Name      string
-	Path      string
 	Image     *v1.Image
 	ImagePath string
 	Ref       *name.Reference
@@ -134,25 +134,24 @@ func SaveImage(image string, cli command.Cli) (*ImageCache, error) {
 		return nil, errors.Wrapf(err, "failed to parse reference: %s", image)
 	}
 
-	var path string
-	if v, ok := os.LookupEnv("ATOMIST_CACHE_DIR"); ok {
-		path = filepath.Join(v, "docker-index")
-	} else {
-		path = filepath.Join(os.TempDir(), "docker-index")
-	}
-
-	createPaths := func(digest string) (string, string, error) {
-		finalPath := strings.Replace(filepath.Join(path, digest), ":", string(os.PathSeparator), 1)
-		tarPath := filepath.Join(finalPath, uuid.NewString()+".tar")
+	createPaths := func(digest string) (string, error) {
+		var path string
+		if v, ok := os.LookupEnv("ATOMIST_CACHE_DIR"); ok {
+			path = filepath.Join(v, "docker-index")
+		} else {
+			path = filepath.Join(os.TempDir(), "docker-index")
+		}
+		tarPath := filepath.Join(path, "sha256", digest[7:])
+		tarFileName := filepath.Join(tarPath, uuid.NewString()+".tar")
 
 		if _, err := os.Stat(tarPath); !os.IsNotExist(err) {
-			return finalPath, tarPath, nil
+			return tarFileName, nil
 		}
-		err := os.MkdirAll(finalPath, os.ModePerm)
+		err := os.MkdirAll(tarPath, os.ModePerm)
 		if err != nil {
-			return "", "", err
+			return "", err
 		}
-		return finalPath, tarPath, nil
+		return tarFileName, nil
 	}
 
 	desc, err := remote.Get(ref, withAuth())
@@ -165,13 +164,13 @@ func SaveImage(image string, cli command.Cli) (*ImageCache, error) {
 			if err != nil {
 				return nil, errors.Wrapf(err, "failed to get local image: %s", image)
 			}
-			path, imagePath, err := createPaths(im.ID)
+			imagePath, err := createPaths(im.ID)
 			if err != nil {
 				return nil, errors.Wrapf(err, "failed to create cache paths")
 			}
 			return &ImageCache{
+				Digest:    im.ID,
 				Name:      image,
-				Path:      path,
 				Image:     &img,
 				Ref:       &ref,
 				ImagePath: imagePath,
@@ -192,13 +191,13 @@ func SaveImage(image string, cli command.Cli) (*ImageCache, error) {
 			digestHash, _ := img.Digest()
 			digest = digestHash.String()
 		}
-		path, imagePath, err := createPaths(digest)
+		imagePath, err := createPaths(digest)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to create cache paths")
 		}
 		return &ImageCache{
+			Digest:    digest,
 			Name:      image,
-			Path:      path,
 			Image:     &img,
 			Ref:       &ref,
 			ImagePath: imagePath,

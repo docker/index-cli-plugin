@@ -74,22 +74,10 @@ func IndexImage(image string, cli command.Cli) (*types.Sbom, *v1.Image, error) {
 }
 
 func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, *v1.Image, error) {
-	// see if we can re-use an existing sbom
-	sbomPath := filepath.Join(cache.Path, "sbom.json")
-	if _, ok := os.LookupEnv("ATOMIST_NO_CACHE"); !ok {
-		if _, err := os.Stat(sbomPath); !os.IsNotExist(err) {
-			var sbom types.Sbom
-			b, err := os.ReadFile(sbomPath)
-			if err == nil {
-				err := json.Unmarshal(b, &sbom)
-				if err == nil {
-					if sbom.Descriptor.SbomVersion == internal.FromBuild().SbomVersion && sbom.Descriptor.Version == internal.FromBuild().Version {
-						skill.Log.Infof(`Indexed %d packages`, len(sbom.Artifacts))
-						return &sbom, cache.Image, nil
-					}
-				}
-			}
-		}
+	configFilePath := cli.ConfigFile().Filename
+	sbomFilePath := filepath.Join(filepath.Dir(configFilePath), "sbom", "sha256", cache.Digest[7:], "sbom.json")
+	if sbom := cachedSbom(cache, sbomFilePath); sbom != nil {
+		return sbom, cache.Image, nil
 	}
 
 	err := cache.StoreImage()
@@ -99,7 +87,6 @@ func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, *v1.I
 	}
 
 	lm := createLayerMapping(*cache.Image)
-	skill.Log.Debugf("Created layer mapping")
 
 	s := internal.StartSpinner("info", "Indexing", cli.Out().IsTerminal())
 	defer s.Stop()
@@ -173,10 +160,37 @@ func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, *v1.I
 
 	js, err := json.MarshalIndent(sbom, "", "  ")
 	if err == nil {
-		_ = os.WriteFile(sbomPath, js, 0644)
+		err = os.MkdirAll(filepath.Dir(sbomFilePath), os.ModePerm)
+		if err != nil {
+			return nil, nil, errors.Wrapf(err, "failed create to sbom folder")
+		}
+		err = os.WriteFile(sbomFilePath, js, 0644)
+		if err != nil {
+			return nil, nil, errors.Wrapf(err, "failed to write sbom")
+		}
 	}
 
 	return &sbom, cache.Image, nil
+}
+
+func cachedSbom(cache *registry.ImageCache, sbomFilePath string) *types.Sbom {
+	// see if we can re-use an existing sbom
+	if _, ok := os.LookupEnv("ATOMIST_NO_CACHE"); !ok {
+		if _, err := os.Stat(sbomFilePath); !os.IsNotExist(err) {
+			var sbom types.Sbom
+			b, err := os.ReadFile(sbomFilePath)
+			if err == nil {
+				err := json.Unmarshal(b, &sbom)
+				if err == nil {
+					if sbom.Descriptor.SbomVersion == internal.FromBuild().SbomVersion && sbom.Descriptor.Version == internal.FromBuild().Version {
+						skill.Log.Infof(`Indexed %d packages`, len(sbom.Artifacts))
+						return &sbom
+					}
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func createLayerMapping(img v1.Image) types.LayerMapping {
@@ -203,5 +217,6 @@ func createLayerMapping(img v1.Image) types.LayerMapping {
 		lm.DigestByOrdinal[i] = layer.Digest.String()
 	}
 
+	skill.Log.Debugf("Created layer mapping")
 	return lm
 }

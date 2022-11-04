@@ -33,8 +33,8 @@ func ReadImage(name string, path string) (*ImageCache, error) {
 	img, _ := index.Image(hash)
 	skill.Log.Infof("Loaded image")
 	return &ImageCache{
+		Digest:    hash.String(),
 		Name:      name,
-		Path:      path,
 		Image:     &img,
 		ImagePath: path,
 		Ref:       nil,
