@@ -1,7 +1,10 @@
 package types
 
 import (
+	"sort"
 	"time"
+
+	"github.com/docker/index-cli-plugin/internal"
 )
 
 type IndexImage struct {
@@ -74,4 +77,46 @@ type Image struct {
 		} `edn:"git.commit/repo"`
 	} `edn:"docker.image/commit"`
 	Report []Report `edn:"vulnerability.report/report"`
+}
+
+func ImageTags(image *Image) []string {
+	tags := make([]string, 0)
+	for _, tag := range image.Tags {
+		tags = append(tags, tag)
+	}
+	sort.Slice(tags, func(i, j int) bool {
+		return len(tags[i]) < len(tags[j])
+	})
+	return tags
+}
+
+func Tags(image *Image) []string {
+	currentTags := make([]string, 0)
+	for _, tag := range image.Tag {
+		currentTags = append(currentTags, tag.Name)
+	}
+	for _, manifestList := range image.ManifestList {
+		for _, tag := range manifestList.Tags {
+			currentTags = append(currentTags, tag.Name)
+		}
+	}
+	sort.Slice(currentTags, func(i, j int) bool {
+		return len(currentTags[i]) < len(currentTags[j])
+	})
+	return currentTags
+}
+
+func SupportedTag(image *Image) string {
+	if tagCount := len(image.Repository.SupportedTags); tagCount > 0 {
+		unsupportedTags := make([]string, 0)
+		for _, tag := range image.Tags {
+			if !internal.Contains(image.Repository.SupportedTags, tag) {
+				unsupportedTags = append(unsupportedTags, tag)
+			}
+		}
+		if len(unsupportedTags) == len(image.Tags) {
+			return " unsupported tag "
+		}
+	}
+	return ""
 }

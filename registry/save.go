@@ -33,6 +33,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/daemon"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 )
 
@@ -93,14 +94,16 @@ func (c *ImageCache) StoreImage() error {
 	for {
 		select {
 		case update = <-u:
-			p := 100 * update.Complete / update.Total
-			if pp != p {
-				spinner.WithFields(internal.Fields{
-					"event":    "progress",
-					"total":    update.Total,
-					"complete": update.Complete,
-				}).Update(fmt.Sprintf("Copying image %d%% %s/%s", p, humanize.Bytes(uint64(update.Complete)), humanize.Bytes(uint64(update.Total))))
-				pp = p
+			if update.Total > 0 {
+				p := 100 * update.Complete / update.Total
+				if pp != p {
+					spinner.WithFields(internal.Fields{
+						"event":    "progress",
+						"total":    update.Total,
+						"complete": update.Complete,
+					}).Update(fmt.Sprintf("Copying image %d%% %s/%s", p, humanize.Bytes(uint64(update.Complete)), humanize.Bytes(uint64(update.Total))))
+					pp = p
+				}
 			}
 		case err = <-errchan:
 			if err != nil {
@@ -140,7 +143,7 @@ func SaveImage(image string, cli command.Cli) (*ImageCache, error) {
 
 	createPaths := func(digest string) (string, string, error) {
 		finalPath := strings.Replace(filepath.Join(path, digest), ":", string(os.PathSeparator), 1)
-		tarPath := filepath.Join(finalPath, "archive.tar")
+		tarPath := filepath.Join(finalPath, uuid.NewString()+".tar")
 
 		if _, err := os.Stat(tarPath); !os.IsNotExist(err) {
 			return finalPath, tarPath, nil

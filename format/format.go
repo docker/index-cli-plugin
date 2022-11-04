@@ -14,14 +14,15 @@
  * limitations under the License.
  */
 
-package types
+package format
 
 import (
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/docker/index-cli-plugin/internal"
+	"github.com/docker/index-cli-plugin/types"
 	"github.com/gookit/color"
 	"github.com/xeonx/timeago"
 )
@@ -64,14 +65,18 @@ func init() {
 	}
 }
 
-func FormatImage(image *Image) string {
+func Image(image *types.Image, imageTags bool) string {
 	e := ""
 	if image.Repository.Host != "hub.docker.com" {
 		e += image.Repository.Host + "/"
 	}
 	e += image.Repository.Name
 	e = defaultColors.green.Sprintf(e)
-	if tags := Tags(image); len(tags) > 0 {
+	tags := types.Tags(image)
+	if imageTags {
+		tags = types.ImageTags(image)
+	}
+	if len(tags) > 0 {
 		for i, t := range tags {
 			tags[i] = defaultColors.cyan.Sprintf(t)
 		}
@@ -79,7 +84,7 @@ func FormatImage(image *Image) string {
 	}
 	if oc := officialContent(image); oc != "" {
 		e += " " + defaultColors.blue.Sprintf(oc)
-		if st := SupportedTag(image); st != "" {
+		if st := types.SupportedTag(image); st != "" {
 			e += " " + defaultColors.red.Sprintf(st)
 		}
 	}
@@ -97,7 +102,7 @@ func FormatImage(image *Image) string {
 	return e
 }
 
-func officialContent(image *Image) string {
+func officialContent(image *types.Image) string {
 	switch image.Repository.Badge {
 	case "open_source":
 		return " Sponsored OSS "
@@ -111,42 +116,11 @@ func officialContent(image *Image) string {
 	return ""
 }
 
-func Tags(image *Image) []string {
-	currentTags := make([]string, 0)
-	for _, tag := range image.Tag {
-		currentTags = append(currentTags, tag.Name)
-	}
-	for _, manifestList := range image.ManifestList {
-		for _, tag := range manifestList.Tags {
-			currentTags = append(currentTags, tag.Name)
-		}
-	}
-	sort.Slice(currentTags, func(i, j int) bool {
-		return len(currentTags[i]) < len(currentTags[j])
-	})
-	return currentTags
-}
-
-func SupportedTag(image *Image) string {
-	if tagCount := len(image.Repository.SupportedTags); tagCount > 0 {
-		unsupportedTags := make([]string, 0)
-		for _, tag := range image.Tags {
-			if !contains(image.Repository.SupportedTags, tag) {
-				unsupportedTags = append(unsupportedTags, tag)
-			}
-		}
-		if len(unsupportedTags) == len(image.Tags) {
-			return " unsupported tag "
-		}
-	}
-	return ""
-}
-
-func CurrentTag(image *Image) string {
-	currentTags := Tags(image)
+func CurrentTag(image *types.Image) string {
+	currentTags := types.Tags(image)
 	if len(currentTags) > 0 {
 		for _, tag := range image.Tags {
-			if contains(currentTags, tag) {
+			if internal.Contains(currentTags, tag) {
 				return ""
 			}
 		}
@@ -154,17 +128,7 @@ func CurrentTag(image *Image) string {
 	return " tag moved "
 }
 
-func contains(s []string, str string) bool {
-	for _, v := range s {
-		if v == str {
-			return true
-		}
-	}
-
-	return false
-}
-
-func RenderCommit(image *Image) string {
+func RenderCommit(image *types.Image) string {
 	if image.TeamId == "A11PU8L1C" {
 		return fmt.Sprintf("https://dso.docker.com/images/%s/digests/%s", image.Repository.Name, image.Digest)
 	} else if image.Commit.Sha != "" {
@@ -177,7 +141,7 @@ func RenderCommit(image *Image) string {
 	return ""
 }
 
-func RenderVulnerabilities(image *Image) string {
+func RenderVulnerabilities(image *types.Image) string {
 	if len(image.Report) > 0 {
 		report := image.Report[0]
 		if report.Total == -1 {
@@ -203,7 +167,7 @@ func RenderVulnerabilities(image *Image) string {
 	return ""
 }
 
-func FormatCve(sb *Sbom, c *Cve) {
+func Cve(sb *types.Sbom, c *types.Cve) {
 	sourceId := c.SourceId
 	if c.Cve != nil {
 		sourceId = c.Cve.SourceId
@@ -228,7 +192,7 @@ func FormatCve(sb *Sbom, c *Cve) {
 	}
 }
 
-func FormatRemediation(remediation []string) {
+func Remediation(remediation []string) {
 	if len(remediation) > 0 {
 		fmt.Println("")
 		fmt.Println(defaultColors.underline.Sprintf("Suggested remediation"))
@@ -238,8 +202,8 @@ func FormatRemediation(remediation []string) {
 	}
 }
 
-func FormatPackageRemediation(p Package, c Cve) string {
-	purl, _ := ToPackageUrl(p.Purl)
+func PackageRemediation(p types.Package, c types.Cve) string {
+	purl, _ := types.ToPackageUrl(p.Purl)
 	if c.FixedBy != "not fixed" {
 		switch purl.Type {
 		case "alpine":
@@ -298,8 +262,8 @@ func ColorizeSeverity(severity string) string {
 	}
 }
 
-func ToSeverity(cve Cve) string {
-	findSeverity := func(adv *Advisory) (string, bool) {
+func ToSeverity(cve types.Cve) string {
+	findSeverity := func(adv *types.Advisory) (string, bool) {
 		if adv == nil {
 			return "", false
 		}
@@ -328,7 +292,7 @@ func ToSeverity(cve Cve) string {
 	return "IN TRIAGE"
 }
 
-func ToSeverityInt(cve Cve) int {
+func ToSeverityInt(cve types.Cve) int {
 	severity := ToSeverity(cve)
 	switch severity {
 	case "CRITICAL":

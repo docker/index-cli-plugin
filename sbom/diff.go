@@ -23,6 +23,7 @@ import (
 
 	"github.com/anchore/packageurl-go"
 	"github.com/docker/cli/cli/command"
+	"github.com/docker/index-cli-plugin/format"
 	"github.com/docker/index-cli-plugin/internal"
 	"github.com/docker/index-cli-plugin/types"
 	"github.com/gookit/color"
@@ -310,7 +311,7 @@ func diffCves(result1, result2 ImageIndexResult) {
 			} else if len(c1) == 0 {
 				cl = defaultColors.added.Sprintf(k)
 			}
-			t.AppendRow(table.Row{k, types.ToSeverityInt(cve), cl, types.ColorizeSeverity(types.ToSeverity(cve)), strings.Join(c1, "\n"), strings.Join(c2, "\n")})
+			t.AppendRow(table.Row{k, format.ToSeverityInt(cve), cl, format.ColorizeSeverity(format.ToSeverity(cve)), strings.Join(c1, "\n"), strings.Join(c2, "\n")})
 			dc++
 		}
 	}
