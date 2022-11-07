@@ -138,7 +138,9 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 				if err != nil {
 					return err
 				}
-				sb.Source.BaseImages = bi.ImagesByDiffIds
+				if bi != nil && len(bi.ImagesByDiffIds) > 0 {
+					sb.Source.BaseImages = bi.ImagesByDiffIds
+				}
 			}
 
 			js, err := json.MarshalIndent(sb, "", "  ")

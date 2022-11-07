@@ -227,6 +227,10 @@ func ForBaseImageInGraphQL(cfg *v1.ConfigFile, excludeSelf bool) (*types.BaseIma
 		diffIds = diffIds[0 : len(diffIds)-1]
 	}
 
+	if len(diffIds) == 0 {
+		return nil, nil
+	}
+
 	url := "https://api.dso.docker.com/v1/graphql"
 	client := graphql.NewClient(url, nil)
 	variables := map[string]interface{}{

@@ -81,6 +81,8 @@ func (c *ImageCache) StoreImage() error {
 	skill.Log.Debugf("Copying image to %s", c.ImagePath)
 
 	if format := os.Getenv("ATOMIST_CACHE_FORMAT"); format == "" || format == "oci" {
+		spinner := internal.StartSpinner("info", "Copying image", c.cli.Out().IsTerminal())
+		defer spinner.Stop()
 		p, err := layout.FromPath(c.ImagePath)
 		if err != nil {
 			p, err = layout.Write(c.ImagePath, empty.Index)
@@ -91,6 +93,7 @@ func (c *ImageCache) StoreImage() error {
 		if err = p.AppendImage(*c.Image); err != nil {
 			return err
 		}
+		spinner.Stop()
 		skill.Log.Infof("Copied image")
 		return nil
 	} else if format == "tar" {
@@ -140,14 +143,15 @@ func (c *ImageCache) Cleanup() {
 	if !c.copy {
 		return
 	}
-	e := os.Remove(c.ImagePath)
+	e := os.RemoveAll(c.ImagePath)
 	if e != nil {
-		skill.Log.Warnf("Failed to delete tmp image archive %s", c.ImagePath)
+		skill.Log.Warnf("Failed to delete tmp image archive %s: %v", c.ImagePath, e)
 	}
 }
 
 // SaveImage stores the v1.Image at path returned in OCI format
 func SaveImage(image string, cli command.Cli) (*ImageCache, error) {
+	skill.Log.Infof("Requesting image %s", image)
 	ref, err := name.ParseReference(image)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to parse reference: %s", image)
