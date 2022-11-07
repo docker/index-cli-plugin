@@ -31,6 +31,8 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/daemon"
+	"github.com/google/go-containerregistry/pkg/v1/empty"
+	"github.com/google/go-containerregistry/pkg/v1/layout"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"github.com/google/uuid"
@@ -77,44 +79,61 @@ func (c *ImageCache) StoreImage() error {
 		return nil
 	}
 	skill.Log.Debugf("Copying image to %s", c.ImagePath)
-	u := make(chan v1.Update, 200)
-	errchan := make(chan error)
-	go func() {
-		if err := tarball.WriteToFile(c.ImagePath, *c.Ref, *c.Image, tarball.WithProgress(u)); err != nil {
-			errchan <- errors.Wrapf(err, "failed to write tmp image archive")
-		}
-		errchan <- nil
-	}()
 
-	var update v1.Update
-	var err error
-	var pp int64
-	spinner := internal.StartSpinner("info", "Copying image", c.cli.Out().IsTerminal())
-	defer spinner.Stop()
-	for {
-		select {
-		case update = <-u:
-			if update.Total > 0 {
-				p := 100 * update.Complete / update.Total
-				if pp != p {
-					spinner.WithFields(internal.Fields{
-						"event":    "progress",
-						"total":    update.Total,
-						"complete": update.Complete,
-					}).Update(fmt.Sprintf("Copying image %d%% %s/%s", p, humanize.Bytes(uint64(update.Complete)), humanize.Bytes(uint64(update.Total))))
-					pp = p
-				}
-			}
-		case err = <-errchan:
+	if format := os.Getenv("ATOMIST_CACHE_FORMAT"); format == "" || format == "oci" {
+		p, err := layout.FromPath(c.ImagePath)
+		if err != nil {
+			p, err = layout.Write(c.ImagePath, empty.Index)
 			if err != nil {
 				return err
-			} else {
-				spinner.Stop()
-				skill.Log.Infof("Copied image")
-				return nil
+			}
+		}
+		if err = p.AppendImage(*c.Image); err != nil {
+			return err
+		}
+		skill.Log.Infof("Copied image")
+		return nil
+	} else if format == "tar" {
+		u := make(chan v1.Update, 200)
+		errchan := make(chan error)
+		go func() {
+			if err := tarball.WriteToFile(c.ImagePath, *c.Ref, *c.Image, tarball.WithProgress(u)); err != nil {
+				errchan <- errors.Wrapf(err, "failed to write tmp image archive")
+			}
+			errchan <- nil
+		}()
+
+		var update v1.Update
+		var err error
+		var pp int64
+		spinner := internal.StartSpinner("info", "Copying image", c.cli.Out().IsTerminal())
+		defer spinner.Stop()
+		for {
+			select {
+			case update = <-u:
+				if update.Total > 0 {
+					p := 100 * update.Complete / update.Total
+					if pp != p {
+						spinner.WithFields(internal.Fields{
+							"event":    "progress",
+							"total":    update.Total,
+							"complete": update.Complete,
+						}).Update(fmt.Sprintf("Copying image %d%% %s/%s", p, humanize.Bytes(uint64(update.Complete)), humanize.Bytes(uint64(update.Total))))
+						pp = p
+					}
+				}
+			case err = <-errchan:
+				if err != nil {
+					return err
+				} else {
+					spinner.Stop()
+					skill.Log.Infof("Copied image")
+					return nil
+				}
 			}
 		}
 	}
+	return nil
 }
 
 func (c *ImageCache) Cleanup() {
@@ -142,7 +161,10 @@ func SaveImage(image string, cli command.Cli) (*ImageCache, error) {
 			path = filepath.Join(os.TempDir(), "docker-index")
 		}
 		tarPath := filepath.Join(path, "sha256", digest[7:])
-		tarFileName := filepath.Join(tarPath, uuid.NewString()+".tar")
+		tarFileName := filepath.Join(tarPath, uuid.NewString())
+		if os.Getenv("ATOMIST_CACHE_FORMAT") == "tar" {
+			tarFileName += ".tar"
+		}
 
 		if _, err := os.Stat(tarPath); !os.IsNotExist(err) {
 			return tarFileName, nil

@@ -74,6 +74,12 @@ type IndexResult struct {
 	Distro   Distro
 }
 
+type BaseImagesResult struct {
+	BaseImages []BaseImage
+	Status     string
+	Error      error
+}
+
 const (
 	Success string = "success"
 	Failed  string = "failed"
@@ -117,8 +123,9 @@ type Descriptor struct {
 }
 
 type Source struct {
-	Type  string      `json:"type"`
-	Image ImageSource `json:"image"`
+	Type       string      `json:"type"`
+	Image      ImageSource `json:"image"`
+	BaseImages []BaseImage `json:"base_images,omitempty"`
 }
 
 type Sbom struct {

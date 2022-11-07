@@ -17,15 +17,19 @@
 package query
 
 import (
+	"context"
 	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"sort"
+	"strings"
 
+	"github.com/atomist-skills/go-skill"
 	"github.com/docker/index-cli-plugin/types"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/hasura/go-graphql-client"
 	"github.com/opencontainers/go-digest"
 	"github.com/opencontainers/image-spec/identity"
 	"github.com/pkg/errors"
@@ -212,4 +216,42 @@ func ForRepositoryInDb(repo string, workspace string, apiKey string) (*types.Rep
 	} else {
 		return nil, nil
 	}
+}
+
+func ForBaseImageInGraphQL(cfg *v1.ConfigFile, excludeSelf bool) (*types.BaseImagesByDiffIdsQuery, error) {
+	diffIds := make([]graphql.ID, 0)
+	for _, d := range cfg.RootFS.DiffIDs {
+		diffIds = append(diffIds, graphql.ID(d.String()))
+	}
+	if excludeSelf {
+		diffIds = diffIds[0 : len(diffIds)-1]
+	}
+
+	url := "https://api.dso.docker.com/v1/graphql"
+	client := graphql.NewClient(url, nil)
+	variables := map[string]interface{}{
+		"diffIds": diffIds,
+	}
+
+	var q types.BaseImagesByDiffIdsQuery
+	err := client.Query(context.Background(), &q, variables)
+	if err != nil {
+		fmt.Sprintf("error %v", err)
+		return nil, errors.Wrapf(err, "failed to run query")
+	}
+	count := 0
+	for ii, _ := range q.ImagesByDiffIds {
+		for bi, _ := range q.ImagesByDiffIds[ii].Images {
+			count++
+			if q.ImagesByDiffIds[ii].Images[bi].Repository.Badge == "" && q.ImagesByDiffIds[ii].Images[bi].Repository.Host == "hub.docker.com" && strings.Index(q.ImagesByDiffIds[ii].Images[bi].Repository.Repo, "/") < 0 {
+				q.ImagesByDiffIds[ii].Images[bi].Repository.Badge = "OFFICIAL_IMAGE"
+			}
+		}
+	}
+	if count == 1 {
+		skill.Log.Infof("Detected %d base image", count)
+	} else {
+		skill.Log.Infof("Detected %d base images", count)
+	}
+	return &q, nil
 }

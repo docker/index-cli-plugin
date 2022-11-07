@@ -70,8 +70,8 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 	config := dockerCli.ConfigFile()
 
 	var (
-		output, ociDir, image, workspace    string
-		apiKeyStdin, includeCves, remediate bool
+		output, ociDir, image, workspace                       string
+		apiKeyStdin, includeCves, includeBaseImages, remediate bool
 	)
 
 	logoutCommand := &cobra.Command{
@@ -133,6 +133,13 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 				}
 				sb.Vulnerabilities = *cves
 			}
+			if includeBaseImages {
+				bi, err := query.ForBaseImageInGraphQL(sb.Source.Image.Config, true)
+				if err != nil {
+					return err
+				}
+				sb.Source.BaseImages = bi.ImagesByDiffIds
+			}
 
 			js, err := json.MarshalIndent(sb, "", "  ")
 			if err != nil {
@@ -152,6 +159,7 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 	sbomCommandFlags.StringVarP(&image, "image", "i", "", "Image reference to index")
 	sbomCommandFlags.StringVarP(&ociDir, "oci-dir", "d", "", "Path to image in OCI format")
 	sbomCommandFlags.BoolVarP(&includeCves, "include-cves", "c", false, "Include package CVEs")
+	sbomCommandFlags.BoolVarP(&includeBaseImages, "include-base-images", "b", false, "Include base images")
 
 	uploadCommand := &cobra.Command{
 		Use:   "upload [OPTIONS]",
