@@ -129,14 +129,16 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 				apiKey, _ := config.PluginConfig("index", "api-key")
 				cves, err := query.QueryCves(sb, "", workspace, apiKey)
 				if err != nil {
-					return err
+					skill.Log.Warnf("error running cve query")
 				}
-				sb.Vulnerabilities = *cves
+				if cves != nil {
+					sb.Vulnerabilities = *cves
+				}
 			}
 			if includeBaseImages {
 				bi, err := query.ForBaseImageInGraphQL(sb.Source.Image.Config, true)
 				if err != nil {
-					return err
+					skill.Log.Warnf("error running base image query")
 				}
 				if bi != nil && len(bi.ImagesByDiffIds) > 0 {
 					sb.Source.BaseImages = bi.ImagesByDiffIds

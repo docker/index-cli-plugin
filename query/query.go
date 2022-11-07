@@ -75,6 +75,9 @@ func QueryCves(sb *types.Sbom, cve string, workspace string, apiKey string) (*[]
 		name = "cve_query"
 	}
 	resp, err := query(q, name, workspace, apiKey)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to run query")
+	}
 	var result QueryResult
 	err = edn.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
