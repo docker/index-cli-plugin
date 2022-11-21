@@ -187,7 +187,7 @@ func cachedSbom(sbomFilePath string) *types.Sbom {
 			if err == nil {
 				err := json.Unmarshal(b, &sbom)
 				if err == nil {
-					if sbom.Descriptor.SbomVersion == internal.FromBuild().SbomVersion && sbom.Descriptor.Version == internal.FromBuild().Version {
+					if sbom.Descriptor.SbomVersion == internal.FromBuild().SbomVersion {
 						skill.Log.Infof(`Indexed %d packages`, len(sbom.Artifacts))
 						return &sbom
 					}
