@@ -249,6 +249,9 @@ func ForBaseImageInGraphQL(cfg *v1.ConfigFile, excludeSelf bool) (*types.BaseIma
 			if q.ImagesByDiffIds[ii].Images[bi].Repository.Badge == "" && q.ImagesByDiffIds[ii].Images[bi].Repository.Host == "hub.docker.com" && strings.Index(q.ImagesByDiffIds[ii].Images[bi].Repository.Repo, "/") < 0 {
 				q.ImagesByDiffIds[ii].Images[bi].Repository.Badge = "OFFICIAL_IMAGE"
 			}
+			if q.ImagesByDiffIds[ii].Images[bi].Repository.Badge != "" {
+				q.ImagesByDiffIds[ii].Images[bi].Repository.Badge = strings.ToLower(q.ImagesByDiffIds[ii].Images[bi].Repository.Badge)
+			}
 		}
 	}
 	if count == 1 {
