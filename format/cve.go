@@ -24,10 +24,9 @@ import (
 	"github.com/docker/index-cli-plugin/internal"
 	"github.com/docker/index-cli-plugin/query"
 	"github.com/docker/index-cli-plugin/types"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
 )
 
-func Cves(cve string, cves *[]types.Cve, img *v1.Image, sb *types.Sbom, remediate bool, dockerCli command.Cli, workspace string, apiKey string) {
+func Cves(cve string, cves *[]types.Cve, sb *types.Sbom, remediate bool, dockerCli command.Cli, workspace string, apiKey string) {
 	if len(*cves) > 0 {
 		for _, c := range *cves {
 			Cve(sb, &c)
@@ -56,7 +55,7 @@ func Cves(cve string, cves *[]types.Cve, img *v1.Image, sb *types.Sbom, remediat
 			// see if the package comes in via the base image
 			s := internal.StartInfoSpinner("Detecting base image", dockerCli.Out().IsTerminal())
 			defer s.Stop()
-			baseImages, index, _ := query.Detect(img, true, workspace, apiKey)
+			baseImages, index, _ := query.Detect(sb, true, workspace, apiKey)
 			s.Stop()
 			var baseImage *types.Image
 			if layerIndex <= index && baseImages != nil && len(*baseImages) > 0 {
@@ -71,7 +70,7 @@ func Cves(cve string, cves *[]types.Cve, img *v1.Image, sb *types.Sbom, remediat
 			if baseImage != nil {
 				s := internal.StartInfoSpinner("Finding alternative base images", dockerCli.Out().IsTerminal())
 				defer s.Stop()
-				aBaseImage, _ := query.ForBaseImageWithoutCve(c.SourceId, baseImage.Repository.Name, img, workspace, apiKey)
+				aBaseImage, _ := query.ForBaseImageWithoutCve(c.SourceId, baseImage.Repository.Name, sb, workspace, apiKey)
 				s.Stop()
 
 				if aBaseImage != nil && len(*aBaseImage) > 0 {

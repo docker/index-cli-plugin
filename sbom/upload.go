@@ -34,19 +34,13 @@ import (
 )
 
 // UploadSbom transact an image and its data into the data plane
-func UploadSbom(sb *types.Sbom, img *v1.Image, workspace string, apikey string) error {
+func UploadSbom(sb *types.Sbom, workspace string, apikey string) error {
 	host, name, err := parseReference(sb)
 	if err != nil {
 		return errors.Wrapf(err, "failed to obtain host and repository")
 	}
-	config, err := (*img).ConfigFile()
-	if err != nil {
-		return errors.Wrapf(err, "failed to obtain config")
-	}
-	manifest, err := (*img).Manifest()
-	if err != nil {
-		return errors.Wrapf(err, "failed to obtain manifest")
-	}
+	config := (*sb).Source.Image.Config
+	manifest := (*sb).Source.Image.Manifest
 
 	now := time.Now()
 	correlationId := uuid.NewString()

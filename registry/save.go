@@ -97,7 +97,7 @@ func (c *ImageCache) StoreImage() error {
 		skill.Log.Infof("Copied image")
 		return nil
 	} else if format == "tar" {
-		u := make(chan v1.Update, 200)
+		u := make(chan v1.Update, 0)
 		errchan := make(chan error)
 		go func() {
 			if err := tarball.WriteToFile(c.ImagePath, *c.Ref, *c.Image, tarball.WithProgress(u)); err != nil {

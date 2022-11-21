@@ -32,7 +32,6 @@ import (
 	"github.com/docker/index-cli-plugin/query"
 	"github.com/docker/index-cli-plugin/sbom"
 	"github.com/docker/index-cli-plugin/types"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/moby/term"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -117,34 +116,14 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 			var sb *types.Sbom
 
 			if ociDir == "" {
-				sb, _, err = sbom.IndexImage(image, dockerCli)
+				sb, err = sbom.IndexImage(image, dockerCli)
 			} else {
-				sb, _, err = sbom.IndexPath(ociDir, image, dockerCli)
+				sb, err = sbom.IndexPath(ociDir, image, dockerCli)
 			}
 			if err != nil {
 				return err
 			}
-			if includeCves {
-				workspace, _ := config.PluginConfig("index", "workspace")
-				apiKey, _ := config.PluginConfig("index", "api-key")
-				cves, err := query.QueryCves(sb, "", workspace, apiKey)
-				if err != nil {
-					skill.Log.Warnf("error running cve query")
-				}
-				if cves != nil {
-					sb.Vulnerabilities = *cves
-				}
-			}
-			if includeBaseImages {
-				bi, err := query.ForBaseImageInGraphQL(sb.Source.Image.Config, true)
-				if err != nil {
-					skill.Log.Warnf("error running base image query")
-				}
-				if bi != nil && len(bi.ImagesByDiffIds) > 0 {
-					sb.Source.BaseImages = bi.ImagesByDiffIds
-				}
-			}
-
+			sb = query.ForCvesAndBaseImagesAsync(sb, includeCves, includeBaseImages, "", "")
 			js, err := json.MarshalIndent(sb, "", "  ")
 			if err != nil {
 				return err
@@ -190,16 +169,15 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 			}
 
 			var sb *types.Sbom
-			var img *v1.Image
 			if ociDir == "" {
-				sb, img, err = sbom.IndexImage(image, dockerCli)
+				sb, err = sbom.IndexImage(image, dockerCli)
 			} else {
-				sb, img, err = sbom.IndexPath(ociDir, image, dockerCli)
+				sb, err = sbom.IndexPath(ociDir, image, dockerCli)
 			}
 			if err != nil {
 				return err
 			}
-			err = sbom.UploadSbom(sb, img, workspace, apiKey)
+			err = sbom.UploadSbom(sb, workspace, apiKey)
 
 			return nil
 		},
@@ -220,12 +198,11 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 			cve := args[0]
 			var err error
 			var sb *types.Sbom
-			var img *v1.Image
 
 			if ociDir == "" {
-				sb, img, err = sbom.IndexImage(image, dockerCli)
+				sb, err = sbom.IndexImage(image, dockerCli)
 			} else {
-				sb, img, err = sbom.IndexPath(ociDir, image, dockerCli)
+				sb, err = sbom.IndexPath(ociDir, image, dockerCli)
 			}
 			if err != nil {
 				return err
@@ -237,7 +214,7 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 				return err
 			}
 
-			format.Cves(cve, cves, img, sb, remediate, dockerCli, workspace, apiKey)
+			format.Cves(cve, cves, sb, remediate, dockerCli, workspace, apiKey)
 
 			if len(*cves) > 0 {
 				os.Exit(1)

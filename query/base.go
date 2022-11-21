@@ -57,12 +57,11 @@ var baseImageCveQuery string
 //go:embed repository_query.edn
 var repositoryQuery string
 
-func Detect(img *v1.Image, excludeSelf bool, workspace string, apiKey string) (*[]types.Image, int, error) {
+func Detect(sb *types.Sbom, excludeSelf bool, workspace string, apiKey string) (*[]types.Image, int, error) {
 	digests := make([]digest.Digest, 0)
-	layers, _ := (*img).Layers()
+	layers := (*sb).Source.Image.Config.RootFS.DiffIDs
 	for _, layer := range layers {
-		d, _ := layer.DiffID()
-		parsed, _ := digest.Parse(d.String())
+		parsed, _ := digest.Parse(layer.String())
 		digests = append(digests, parsed)
 	}
 	if excludeSelf {
@@ -134,8 +133,8 @@ func ForBaseImageInIndex(digest digest.Digest, workspace string, apiKey string) 
 	return nil, nil
 }
 
-func ForBaseImageWithoutCve(cve string, name string, img *v1.Image, workspace string, apiKey string) (*[]types.Image, error) {
-	cf, _ := (*img).ConfigFile()
+func ForBaseImageWithoutCve(cve string, name string, sb *types.Sbom, workspace string, apiKey string) (*[]types.Image, error) {
+	cf := (*sb).Source.Image.Config
 	resp, err := query(fmt.Sprintf(baseImageCveQuery, cve, name, cf.OS, cf.Architecture, cf.Variant), "base_image_cve_query", workspace, apiKey)
 
 	var result ImageQueryResult
@@ -224,7 +223,7 @@ func ForBaseImageInGraphQL(cfg *v1.ConfigFile, excludeSelf bool) (*types.BaseIma
 		diffIds = append(diffIds, graphql.ID(d.String()))
 	}
 	if excludeSelf {
-		diffIds = diffIds[0 : len(diffIds)-1]
+		// diffIds = diffIds[0 : len(diffIds)-1]
 	}
 
 	if len(diffIds) == 0 {

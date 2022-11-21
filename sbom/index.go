@@ -37,53 +37,58 @@ import (
 
 type ImageIndexResult struct {
 	Input string
-	Image *v1.Image
 	Sbom  *types.Sbom
 	Error error
 }
 
 func indexImageAsync(wg *sync.WaitGroup, image string, cli command.Cli, resultChan chan<- ImageIndexResult) {
 	defer wg.Done()
-	sbom, img, err := IndexImage(image, cli)
+	sbom, err := IndexImage(image, cli)
 	cves, err := query.QueryCves(sbom, "", "", "")
 	if err == nil {
 		sbom.Vulnerabilities = *cves
 	}
 	resultChan <- ImageIndexResult{
 		Input: image,
-		Image: img,
 		Sbom:  sbom,
 		Error: err,
 	}
 }
 
-func IndexPath(path string, name string, cli command.Cli) (*types.Sbom, *v1.Image, error) {
+func IndexPath(path string, name string, cli command.Cli) (*types.Sbom, error) {
 	cache, err := registry.ReadImage(name, path)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to read image")
+		return nil, errors.Wrap(err, "failed to read image")
 	}
 	return indexImage(cache, cli)
 }
 
-func IndexImage(image string, cli command.Cli) (*types.Sbom, *v1.Image, error) {
+func IndexImage(image string, cli command.Cli) (*types.Sbom, error) {
+	if strings.HasPrefix(image, "sha256:") {
+		configFilePath := cli.ConfigFile().Filename
+		sbomFilePath := filepath.Join(filepath.Dir(configFilePath), "sbom", "sha256", image[7:], "sbom.json")
+		if sbom := cachedSbom(sbomFilePath); sbom != nil {
+			return sbom, nil
+		}
+	}
 	cache, err := registry.SaveImage(image, cli)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to copy image")
+		return nil, errors.Wrap(err, "failed to copy image")
 	}
 	return indexImage(cache, cli)
 }
 
-func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, *v1.Image, error) {
+func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, error) {
 	configFilePath := cli.ConfigFile().Filename
 	sbomFilePath := filepath.Join(filepath.Dir(configFilePath), "sbom", "sha256", cache.Digest[7:], "sbom.json")
-	if sbom := cachedSbom(cache, sbomFilePath); sbom != nil {
-		return sbom, cache.Image, nil
+	if sbom := cachedSbom(sbomFilePath); sbom != nil {
+		return sbom, nil
 	}
 
 	err := cache.StoreImage()
 	defer cache.Cleanup()
 	if err != nil {
-		return nil, nil, errors.Wrapf(err, "failed to copy image")
+		return nil, errors.Wrapf(err, "failed to copy image")
 	}
 
 	lm := createLayerMapping(*cache.Image)
@@ -101,7 +106,7 @@ func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, *v1.I
 	trivyResult.Packages, err = types.NormalizePackages(trivyResult.Packages)
 	syftResult.Packages, err = types.NormalizePackages(syftResult.Packages)
 	if err != nil {
-		return nil, nil, errors.Wrapf(err, "failed to normalize packagess: %s", cache.Name)
+		return nil, errors.Wrapf(err, "failed to normalize packagess: %s", cache.Name)
 	}
 
 	packages := types.MergePackages(syftResult, trivyResult)
@@ -119,7 +124,7 @@ func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, *v1.I
 	if cache.Name != "" {
 		ref, err := name.ParseReference(cache.Name)
 		if err != nil {
-			return nil, nil, errors.Wrapf(err, "failed to parse reference: %s", cache.Name)
+			return nil, errors.Wrapf(err, "failed to parse reference: %s", cache.Name)
 		}
 		cache.Name = ref.Context().String()
 		if !strings.HasPrefix(ref.Identifier(), "sha256:") {
@@ -162,18 +167,18 @@ func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, *v1.I
 	if err == nil {
 		err = os.MkdirAll(filepath.Dir(sbomFilePath), os.ModePerm)
 		if err != nil {
-			return nil, nil, errors.Wrapf(err, "failed create to sbom folder")
+			return nil, errors.Wrapf(err, "failed create to sbom folder")
 		}
 		err = os.WriteFile(sbomFilePath, js, 0644)
 		if err != nil {
-			return nil, nil, errors.Wrapf(err, "failed to write sbom")
+			return nil, errors.Wrapf(err, "failed to write sbom")
 		}
 	}
 
-	return &sbom, cache.Image, nil
+	return &sbom, nil
 }
 
-func cachedSbom(cache *registry.ImageCache, sbomFilePath string) *types.Sbom {
+func cachedSbom(sbomFilePath string) *types.Sbom {
 	// see if we can re-use an existing sbom
 	if _, ok := os.LookupEnv("ATOMIST_NO_CACHE"); !ok {
 		if _, err := os.Stat(sbomFilePath); !os.IsNotExist(err) {
