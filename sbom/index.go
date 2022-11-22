@@ -30,7 +30,6 @@ import (
 	"github.com/docker/index-cli-plugin/query"
 	"github.com/docker/index-cli-plugin/registry"
 	"github.com/docker/index-cli-plugin/types"
-	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/pkg/errors"
 )
@@ -80,7 +79,7 @@ func IndexImage(image string, cli command.Cli) (*types.Sbom, error) {
 
 func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, error) {
 	configFilePath := cli.ConfigFile().Filename
-	sbomFilePath := filepath.Join(filepath.Dir(configFilePath), "sbom", "sha256", cache.Digest[7:], "sbom.json")
+	sbomFilePath := filepath.Join(filepath.Dir(configFilePath), "sbom", "sha256", cache.Id[7:], "sbom.json")
 	if sbom := cachedSbom(sbomFilePath); sbom != nil {
 		return sbom, nil
 	}
@@ -118,19 +117,6 @@ func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, error
 	config, _ := (*cache.Image).RawConfigFile()
 	c, _ := (*cache.Image).ConfigFile()
 	m, _ := (*cache.Image).Manifest()
-	d, _ := (*cache.Image).Digest()
-
-	var tag []string
-	if cache.Name != "" {
-		ref, err := name.ParseReference(cache.Name)
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to parse reference: %s", cache.Name)
-		}
-		cache.Name = ref.Context().String()
-		if !strings.HasPrefix(ref.Identifier(), "sha256:") {
-			tag = []string{ref.Identifier()}
-		}
-	}
 
 	sbom := types.Sbom{
 		Artifacts: packages,
@@ -138,7 +124,7 @@ func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, error
 			Type: "image",
 			Image: types.ImageSource{
 				Name:        cache.Name,
-				Digest:      d.String(),
+				Digest:      cache.Digest,
 				Manifest:    m,
 				Config:      c,
 				RawManifest: base64.StdEncoding.EncodeToString(manifest),
@@ -159,8 +145,8 @@ func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, error
 		},
 	}
 
-	if len(tag) > 0 {
-		sbom.Source.Image.Tags = &tag
+	if len(cache.Tags) > 0 {
+		sbom.Source.Image.Tags = &cache.Tags
 	}
 
 	js, err := json.MarshalIndent(sbom, "", "  ")

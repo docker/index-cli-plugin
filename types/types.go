@@ -114,6 +114,7 @@ type ImageSource struct {
 	Distro      Distro         `json:"distro"`
 	Platform    Platform       `json:"platform"`
 	Size        int64          `json:"size"`
+	Details     *BaseImage     `json:"details,omitempty""`
 }
 
 type Descriptor struct {
@@ -123,9 +124,9 @@ type Descriptor struct {
 }
 
 type Source struct {
-	Type       string      `json:"type"`
-	Image      ImageSource `json:"image"`
-	BaseImages []BaseImage `json:"base_images,omitempty"`
+	Type       string           `json:"type"`
+	Image      ImageSource      `json:"image"`
+	BaseImages []BaseImageMatch `json:"base_images,omitempty"`
 }
 
 type Sbom struct {

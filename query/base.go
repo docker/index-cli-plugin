@@ -246,12 +246,7 @@ func ForBaseImageInGraphQL(cfg *v1.ConfigFile, excludeSelf bool) (*types.BaseIma
 	for ii, _ := range q.ImagesByDiffIds {
 		for bi, _ := range q.ImagesByDiffIds[ii].Images {
 			count++
-			if q.ImagesByDiffIds[ii].Images[bi].Repository.Host == "hub.docker.com" && strings.Index(q.ImagesByDiffIds[ii].Images[bi].Repository.Repo, "/") < 0 {
-				q.ImagesByDiffIds[ii].Images[bi].Repository.Badge = "OFFICIAL"
-			}
-			if q.ImagesByDiffIds[ii].Images[bi].Repository.Badge != "" {
-				q.ImagesByDiffIds[ii].Images[bi].Repository.Badge = strings.ToLower(q.ImagesByDiffIds[ii].Images[bi].Repository.Badge)
-			}
+			q.ImagesByDiffIds[ii].Images[bi].Repository = normalizeRepository(&q.ImagesByDiffIds[ii].Images[bi]).Repository
 		}
 	}
 	if count == 1 {
@@ -260,4 +255,36 @@ func ForBaseImageInGraphQL(cfg *v1.ConfigFile, excludeSelf bool) (*types.BaseIma
 		skill.Log.Infof("Detected %d base images", count)
 	}
 	return &q, nil
+}
+
+func ForImageInGraphQL(sb *types.Sbom) (*types.ImageByDigestQuery, error) {
+	url := "https://api.dso.docker.com/v1/graphql"
+	client := graphql.NewClient(url, nil)
+	variables := map[string]interface{}{
+		"digest":       sb.Source.Image.Digest,
+		"os":           sb.Source.Image.Platform.Os,
+		"architecture": sb.Source.Image.Platform.Architecture,
+		"variant":      sb.Source.Image.Platform.Variant,
+	}
+
+	var q types.ImageByDigestQuery
+	err := client.Query(context.Background(), &q, variables)
+	if err != nil {
+		fmt.Sprintf("error %v", err)
+		return nil, errors.Wrapf(err, "failed to run query")
+	}
+	if q.ImageDetailsByDigest.Digest != "" {
+		q.ImageDetailsByDigest.Repository = normalizeRepository(&q.ImageDetailsByDigest).Repository
+	}
+	return &q, nil
+}
+
+func normalizeRepository(image *types.BaseImage) *types.BaseImage {
+	if image.Repository.Host == "hub.docker.com" && strings.Index(image.Repository.Repo, "/") < 0 {
+		image.Repository.Badge = "OFFICIAL"
+	}
+	if image.Repository.Badge != "" {
+		image.Repository.Badge = strings.ToLower(image.Repository.Badge)
+	}
+	return image
 }

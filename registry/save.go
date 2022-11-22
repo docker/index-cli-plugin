@@ -64,8 +64,11 @@ func (i ImageId) String() string {
 }
 
 type ImageCache struct {
-	Digest    string
-	Name      string
+	Id     string
+	Digest string
+	Name   string
+	Tags   []string
+
 	Image     *v1.Image
 	ImagePath string
 	Ref       *name.Reference
@@ -180,50 +183,33 @@ func SaveImage(image string, cli command.Cli) (*ImageCache, error) {
 		return tarFileName, nil
 	}
 
-	desc, err := remote.Get(ref, withAuth())
-	if err != nil {
+	// check local first because it is the fastest
+	im, _, err := cli.Client().ImageInspectWithRaw(context.Background(), image)
+	if err == nil {
 		img, err := daemon.Image(ImageId{name: image}, daemon.WithClient(cli.Client()))
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to pull image: %s", image)
-		} else {
-			im, _, err := cli.Client().ImageInspectWithRaw(context.Background(), image)
-			if err != nil {
-				return nil, errors.Wrapf(err, "failed to get local image: %s", image)
-			}
-			imagePath, err := createPaths(im.ID)
-			if err != nil {
-				return nil, errors.Wrapf(err, "failed to create cache paths")
-			}
-			return &ImageCache{
-				Digest:    im.ID,
-				Name:      image,
-				Image:     &img,
-				Ref:       &ref,
-				ImagePath: imagePath,
-				copy:      true,
-				cli:       cli,
-			}, nil
 		}
-	} else {
-		img, err := desc.Image()
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to pull image: %s", image)
-		}
-		var digest string
-		identifier := ref.Identifier()
-		if strings.HasPrefix(identifier, "sha256:") {
-			digest = identifier
-		} else {
-			digestHash, _ := img.Digest()
-			digest = digestHash.String()
-		}
-		imagePath, err := createPaths(digest)
+		imagePath, err := createPaths(im.ID)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to create cache paths")
 		}
+		var name, digest string
+		tags := make([]string, 0)
+		for _, d := range im.RepoDigests {
+			name = strings.Split(d, "@")[0]
+			digest = strings.Split(d, "@")[1]
+		}
+		for _, t := range im.RepoTags {
+			name = strings.Split(t, ":")[0]
+			tags = append(tags, strings.Split(t, ":")[1])
+		}
 		return &ImageCache{
-			Digest:    digest,
-			Name:      image,
+			Id:     im.ID,
+			Digest: digest,
+			Name:   name,
+			Tags:   tags,
+
 			Image:     &img,
 			Ref:       &ref,
 			ImagePath: imagePath,
@@ -231,6 +217,41 @@ func SaveImage(image string, cli command.Cli) (*ImageCache, error) {
 			cli:       cli,
 		}, nil
 	}
+	// try remote image next
+	desc, err := remote.Get(ref, withAuth())
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to pull image: %s", image)
+	}
+	img, err := desc.Image()
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to pull image: %s", image)
+	}
+	var digest string
+	tags := make([]string, 0)
+	identifier := ref.Identifier()
+	if strings.HasPrefix(identifier, "sha256:") {
+		digest = identifier
+	} else {
+		digestHash, _ := img.Digest()
+		digest = digestHash.String()
+		tags = append(tags, identifier)
+	}
+	imagePath, err := createPaths(digest)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to create cache paths")
+	}
+	return &ImageCache{
+		Id:     digest,
+		Digest: digest,
+		Name:   image,
+		Image:  &img,
+		Tags:   tags,
+
+		Ref:       &ref,
+		ImagePath: imagePath,
+		copy:      true,
+		cli:       cli,
+	}, nil
 }
 
 func withAuth() remote.Option {

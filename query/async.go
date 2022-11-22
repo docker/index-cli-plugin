@@ -24,12 +24,13 @@ import (
 
 type queryResult struct {
 	Cves       []types.Cve
-	BaseImages []types.BaseImage
+	BaseImages []types.BaseImageMatch
+	Image      *types.BaseImage
 	Error      error
 }
 
 func ForCvesAndBaseImagesAsync(sb *types.Sbom, includeCves bool, includeBaseImages bool, workspace string, apiKey string) *types.Sbom {
-	resultChan := make(chan queryResult, 2)
+	resultChan := make(chan queryResult, 3)
 	var wg sync.WaitGroup
 	if includeCves {
 		wg.Add(1)
@@ -49,7 +50,7 @@ func ForCvesAndBaseImagesAsync(sb *types.Sbom, includeCves bool, includeBaseImag
 		}()
 	}
 	if includeBaseImages {
-		wg.Add(1)
+		wg.Add(2)
 		go func() {
 			defer wg.Done()
 			bi, err := ForBaseImageInGraphQL(sb.Source.Image.Config, true)
@@ -64,6 +65,20 @@ func ForCvesAndBaseImagesAsync(sb *types.Sbom, includeCves bool, includeBaseImag
 				}
 			}
 		}()
+		go func() {
+			defer wg.Done()
+			bi, err := ForImageInGraphQL(sb)
+			if err != nil {
+				resultChan <- queryResult{
+					Error: err,
+				}
+			}
+			if bi != nil && bi.ImageDetailsByDigest.Digest != "" {
+				resultChan <- queryResult{
+					Image: &bi.ImageDetailsByDigest,
+				}
+			}
+		}()
 	}
 	wg.Wait()
 	close(resultChan)
@@ -74,6 +89,9 @@ func ForCvesAndBaseImagesAsync(sb *types.Sbom, includeCves bool, includeBaseImag
 		}
 		if result.Cves != nil {
 			sb.Vulnerabilities = result.Cves
+		}
+		if result.Image != nil {
+			sb.Source.Image.Details = result.Image
 		}
 	}
 
