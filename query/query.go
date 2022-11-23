@@ -17,6 +17,7 @@
 package query
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 	"net/http"
@@ -24,6 +25,7 @@ import (
 
 	"github.com/docker/index-cli-plugin/internal"
 	"github.com/docker/index-cli-plugin/types"
+	"github.com/hasura/go-graphql-client"
 
 	"github.com/atomist-skills/go-skill"
 	"github.com/pkg/errors"
@@ -131,4 +133,33 @@ func query(query string, name string, workspace string, apiKey string) (*http.Re
 	}
 	skill.Log.Debugf("Query response %s", resp.Status)
 	return resp, nil
+}
+
+func ForVulnerabilitiesInGraphQL(sb *types.Sbom) (*types.VulnerabilitiesByPurls, error) {
+	url := "https://api.dso.docker.com/v1/graphql"
+	client := graphql.NewClient(url, nil)
+
+	purls := make([]string, 0)
+	for _, p := range sb.Artifacts {
+		purls = append(purls, p.Purl)
+	}
+
+	variables := map[string]interface{}{
+		"purls": purls,
+	}
+
+	var q types.VulnerabilitiesByPurls
+	err := client.Query(context.Background(), &q, variables)
+	if err != nil {
+		fmt.Sprintf("error %v", err)
+		return nil, errors.Wrapf(err, "failed to run query")
+	}
+	if len(q.VulnerabilitiesByPackage) > 0 {
+		if len(q.VulnerabilitiesByPackage) == 1 {
+			skill.Log.Infof("Detected 1 vulnerable package")
+		} else {
+			skill.Log.Infof("Detected %d vulnerable packages", len(q.VulnerabilitiesByPackage))
+		}
+	}
+	return &q, nil
 }

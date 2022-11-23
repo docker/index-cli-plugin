@@ -1,3 +1,19 @@
+/*
+ * Copyright © 2022 Docker, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package types
 
 type BaseImage struct {
@@ -47,4 +63,32 @@ type BaseImagesByDiffIdsQuery struct {
 
 type ImageByDigestQuery struct {
 	ImageDetailsByDigest BaseImage `graphql:"imageDetailsByDigest(context: {}, digest: $digest, platform: {os: $os, architecture: $architecture, variant: $variant})"`
+}
+
+type Vulnerability struct {
+	Source          string `graphql:"source" json:"source,omitempty"`
+	SourceId        string `graphql:"sourceId" json:"source_id,omitempty"`
+	Description     string `graphql:"description" json:"description,omitempty"`
+	VulnerableRange string `graphql:"vulnerableRange" json:"vulnerable_range,omitempty"`
+	FixedBy         string `graphql:"fixedBy" json:"fixed_by,omitempty"`
+	Url             string `graphql:"url" json:"url,omitempty"`
+	Cvss            struct {
+		Score    float32 `graphql:"score" json:"score,omitempty"`
+		Severity string  `graphql:"severity" json:"severity,omitempty"`
+		Vector   string  `graphql:"vector" json:"vector,omitempty"`
+		Version  string  `graphql:"version" json:"version,omitempty"`
+	} `graphql:"cvss" json:"cvss,omitempty"`
+	Cwes []struct {
+		CweId string `graphql:"cweId" json:"cwe_id,omitempty"`
+		Name  string `graphql:"description" json:"name,omitempty"`
+	} `graphql:"cwes" json:"cwes,omitempty"`
+}
+
+type VulnerabilitiesByPurl struct {
+	Purl            string          `graphql:"purl" json:"purl,omitempty"`
+	Vulnerabilities []Vulnerability `graphql:"vulnerabilities" json:"vulnerabilities,omitempty"`
+}
+
+type VulnerabilitiesByPurls struct {
+	VulnerabilitiesByPackage []VulnerabilitiesByPurl `graphql:"vulnerabilitiesByPackage(context: {}, packageUrls: $purls)"`
 }

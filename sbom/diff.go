@@ -23,8 +23,6 @@ import (
 
 	"github.com/anchore/packageurl-go"
 	"github.com/docker/cli/cli/command"
-	"github.com/docker/index-cli-plugin/format"
-	"github.com/docker/index-cli-plugin/internal"
 	"github.com/docker/index-cli-plugin/types"
 	"github.com/gookit/color"
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -79,7 +77,7 @@ func DiffImages(image1 string, image2 string, cli command.Cli, workspace string,
 	}
 
 	diffPackages(result1, result2)
-	diffCves(result1, result2)
+	//diffCves(result1, result2)
 	return nil
 }
 
@@ -235,7 +233,7 @@ type CveEntry struct {
 
 type CveMap map[string]CveEntry
 
-func diffCves(result1, result2 ImageIndexResult) {
+/*func diffCves(result1, result2 ImageIndexResult) {
 	dc := 0
 	cves := make(CveMap)
 	for _, c := range result1.Sbom.Vulnerabilities {
@@ -329,4 +327,4 @@ func diffCves(result1, result2 ImageIndexResult) {
 		fmt.Println(t.Render())
 	}
 
-}
+}*/

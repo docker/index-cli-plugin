@@ -130,10 +130,10 @@ type Source struct {
 }
 
 type Sbom struct {
-	Source          Source     `json:"source"`
-	Artifacts       []Package  `json:"artifacts"`
-	Vulnerabilities []Cve      `json:"vulnerabilities,omitempty"`
-	Descriptor      Descriptor `json:"descriptor"`
+	Source          Source                  `json:"source"`
+	Artifacts       []Package               `json:"artifacts"`
+	Vulnerabilities []VulnerabilitiesByPurl `json:"vulnerabilities,omitempty"`
+	Descriptor      Descriptor              `json:"descriptor"`
 }
 
 type Package struct {

@@ -43,9 +43,9 @@ type ImageIndexResult struct {
 func indexImageAsync(wg *sync.WaitGroup, image string, cli command.Cli, resultChan chan<- ImageIndexResult) {
 	defer wg.Done()
 	sbom, err := IndexImage(image, cli)
-	cves, err := query.QueryCves(sbom, "", "", "")
+	cves, err := query.ForVulnerabilitiesInGraphQL(sbom)
 	if err == nil {
-		sbom.Vulnerabilities = *cves
+		sbom.Vulnerabilities = cves.VulnerabilitiesByPackage
 	}
 	resultChan <- ImageIndexResult{
 		Input: image,
