@@ -22,22 +22,28 @@ import (
 	stereoscopeimage "github.com/anchore/stereoscope/pkg/image"
 	"github.com/anchore/syft/syft/source"
 	"github.com/docker/cli/cli/command"
+	"github.com/docker/cli/cli/flags"
 	"github.com/docker/index-cli-plugin/registry"
 	"github.com/docker/index-cli-plugin/types"
 )
 
 func TestNodeDetector(t *testing.T) {
 	cmd, _ := command.NewDockerCli()
-	_, ociPath, _, _ := registry.SaveImage("node@sha256:2b00d259f3b07d8aa694b298a7dcf4655571aea2ab91375b5adb8e5a905d3ee2", cmd.Client())
+	cmd.Initialize(flags.NewClientOptions())
+	cache, _ := registry.SaveImage("atomist/skill@sha256:a691a1ccfa81ab7cc6b422a53bfb9bbcea4d78873426b0389eec8f554da9b0b8", cmd)
+	cache.StoreImage()
 	lm := types.LayerMapping{
 		ByDiffId: make(map[string]string),
 	}
 	i := source.Input{
 		Scheme:      source.ImageScheme,
-		ImageSource: stereoscopeimage.DockerTarballSource,
-		Location:    ociPath + "/archive.tar",
+		ImageSource: stereoscopeimage.OciDirectorySource,
+		Location:    cache.ImagePath,
 	}
-	src, _, _ := source.New(i, nil, nil)
+	src, _, err := source.New(i, nil, nil)
+	if err != nil {
+		t.Fail()
+	}
 	packages := nodePackageDetector()([]types.Package{}, *src, lm)
 	if len(packages) != 1 {
 		t.Errorf("Expected package missing")

@@ -44,11 +44,11 @@ func AdditionalPackages(packages []types.Package, image source.Source, lm types.
 	return additionalPackages
 }
 
-func stringsNodeDetector(executable string, versionEnvVar string, expr *regexp.Regexp, pkg types.Package) PackageDetector {
+func stringsNodeDetector(executable string, versionEnvVar string, expr *regexp.Regexp, pkg types.Package, filterFunc func(purl string) bool) PackageDetector {
 	return func(packages []types.Package, image source.Source, lm types.LayerMapping) []types.Package {
 		// Already found via package manager
 		for _, p := range packages {
-			if purl, err := types.ToPackageUrl(p.Purl); err == nil && purl.Name == pkg.Name {
+			if filterFunc(p.Purl) {
 				return []types.Package{}
 			}
 		}

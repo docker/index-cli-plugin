@@ -33,5 +33,9 @@ func nodePackageDetector() PackageDetector {
 		Licenses:    []string{"MIT"},
 		Url:         "https://nodejs.org",
 	}
-	return stringsNodeDetector("node", "NODE_VERSION", expr, pkg)
+	filter := func(purl string) bool {
+		pkg, _ := types.ToPackageUrl(purl)
+		return pkg.Name == "nodejs" || pkg.Name == "node"
+	}
+	return stringsNodeDetector("node", "NODE_VERSION", expr, pkg, filter)
 }
