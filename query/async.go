@@ -53,7 +53,7 @@ func ForCvesAndBaseImagesAsync(sb *types.Sbom, includeCves bool, includeBaseImag
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			bi, err := ForBaseImageInGraphQL(sb.Source.Image.Config, true)
+			bi, err := ForBaseImageInGraphQL(sb.Source.Image.Config)
 			if err != nil {
 				resultChan <- queryResult{
 					Error: err,
@@ -93,6 +93,24 @@ func ForCvesAndBaseImagesAsync(sb *types.Sbom, includeCves bool, includeBaseImag
 		if result.Image != nil {
 			sb.Source.Image.Details = result.Image
 		}
+	}
+
+	// filter out input image from the list of base images
+	if sb.Source.Image.Details != nil && len(sb.Source.BaseImages) > 0 {
+		digest := sb.Source.Image.Details.Digest
+		baseImages := make([]types.BaseImageMatch, 0)
+		for _, b := range sb.Source.BaseImages {
+			selfRef := false
+			for _, i := range b.Images {
+				if i.Digest == digest {
+					selfRef = true
+				}
+			}
+			if !selfRef {
+				baseImages = append(baseImages, b)
+			}
+		}
+		sb.Source.BaseImages = baseImages
 	}
 
 	return sb

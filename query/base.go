@@ -217,13 +217,10 @@ func ForRepositoryInDb(repo string, workspace string, apiKey string) (*types.Rep
 	}
 }
 
-func ForBaseImageInGraphQL(cfg *v1.ConfigFile, excludeSelf bool) (*types.BaseImagesByDiffIdsQuery, error) {
+func ForBaseImageInGraphQL(cfg *v1.ConfigFile) (*types.BaseImagesByDiffIdsQuery, error) {
 	diffIds := make([]graphql.ID, 0)
 	for _, d := range cfg.RootFS.DiffIDs {
 		diffIds = append(diffIds, graphql.ID(d.String()))
-	}
-	if excludeSelf {
-		// diffIds = diffIds[0 : len(diffIds)-1]
 	}
 
 	if len(diffIds) == 0 {
