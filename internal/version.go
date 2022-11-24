@@ -50,6 +50,6 @@ func FromBuild() Version {
 		Compiler:  runtime.Compiler,
 		Platform:  fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH),
 
-		SbomVersion: "5",
+		SbomVersion: "6",
 	}
 }
