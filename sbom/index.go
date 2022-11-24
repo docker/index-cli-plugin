@@ -102,6 +102,13 @@ func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, error
 	trivyResult := <-trivyResultChan
 	syftResult := <-syftResultChan
 
+	if trivyResult.Error != nil {
+		return nil, errors.Wrapf(trivyResult.Error, "failed to index image")
+	}
+	if syftResult.Error != nil {
+		return nil, errors.Wrapf(syftResult.Error, "failed to index image")
+	}
+
 	trivyResult.Packages, err = types.NormalizePackages(trivyResult.Packages)
 	syftResult.Packages, err = types.NormalizePackages(syftResult.Packages)
 	if err != nil {

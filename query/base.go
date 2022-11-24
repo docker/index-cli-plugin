@@ -263,6 +263,10 @@ func ForImageInGraphQL(sb *types.Sbom) (*types.ImageByDigestQuery, error) {
 		"architecture": sb.Source.Image.Platform.Architecture,
 		"variant":      sb.Source.Image.Platform.Variant,
 	}
+	if sb.Source.Image.Platform.Variant == "" {
+		variables["variant"] = "n/a"
+	}
+	skill.Log.Debugf("Querying for image with %v", variables)
 
 	var q types.ImageByDigestQuery
 	err := client.Query(context.Background(), &q, variables)
@@ -273,6 +277,7 @@ func ForImageInGraphQL(sb *types.Sbom) (*types.ImageByDigestQuery, error) {
 	if q.ImageDetailsByDigest.Digest != "" {
 		q.ImageDetailsByDigest.Repository = normalizeRepository(&q.ImageDetailsByDigest).Repository
 	}
+	skill.Log.Debugf("Image query returned %v", q)
 	return &q, nil
 }
 

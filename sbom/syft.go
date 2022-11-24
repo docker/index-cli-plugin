@@ -61,6 +61,9 @@ func syftSbom(ociPath string, lm types.LayerMapping, resultChan chan<- types.Ind
 	if err != nil {
 		result.Status = types.Failed
 		result.Error = errors.Wrap(err, "failed to create image source")
+		resultChan <- result
+		return
+
 	}
 	defer cleanup()
 
@@ -68,6 +71,9 @@ func syftSbom(ociPath string, lm types.LayerMapping, resultChan chan<- types.Ind
 	if err != nil {
 		result.Status = types.Failed
 		result.Error = errors.Wrap(err, "failed to index image")
+		resultChan <- result
+		return
+
 	}
 
 	d, qualifiers := osQualifiers(distro)
@@ -82,6 +88,9 @@ func syftSbom(ociPath string, lm types.LayerMapping, resultChan chan<- types.Ind
 			if err != nil {
 				result.Status = types.Failed
 				result.Error = errors.Wrap(err, "failed to catalog apk packages")
+				resultChan <- result
+				return
+
 			}
 		}
 		layerPkgs = append(layerPkgs, apkPkgs...)
@@ -90,14 +99,29 @@ func syftSbom(ociPath string, lm types.LayerMapping, resultChan chan<- types.Ind
 			if err != nil {
 				result.Status = types.Failed
 				result.Error = errors.Wrap(err, "failed to catalog dep packages")
+				resultChan <- result
+				return
+
 			}
 		}
 		layerPkgs = append(layerPkgs, debPkgs...)
-		rpmPkgs, _, err := rpm.NewRpmdbCataloger().Catalog(res)
+		rpmPkgs, _, err := rpm.NewRpmDBCataloger().Catalog(res)
 		if err != nil {
 			if err != nil {
 				result.Status = types.Failed
 				result.Error = errors.Wrap(err, "failed to catalog rpm packages")
+				resultChan <- result
+				return
+			}
+		}
+		layerPkgs = append(layerPkgs, rpmPkgs...)
+		rpmPkgs, _, err = rpm.NewFileCataloger().Catalog(res)
+		if err != nil {
+			if err != nil {
+				result.Status = types.Failed
+				result.Error = errors.Wrap(err, "failed to catalog rpm packages")
+				resultChan <- result
+				return
 			}
 		}
 		layerPkgs = append(layerPkgs, rpmPkgs...)

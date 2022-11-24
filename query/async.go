@@ -19,6 +19,7 @@ package query
 import (
 	"sync"
 
+	"github.com/atomist-skills/go-skill"
 	"github.com/docker/index-cli-plugin/types"
 )
 
@@ -84,6 +85,9 @@ func ForCvesAndBaseImagesAsync(sb *types.Sbom, includeCves bool, includeBaseImag
 	close(resultChan)
 
 	for result := range resultChan {
+		if result.Error != nil {
+			skill.Log.Warnf("Failed to obtain vulnerabilties or base images %v", result.Error)
+		}
 		if result.BaseImages != nil {
 			sb.Source.BaseImages = result.BaseImages
 		}

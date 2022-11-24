@@ -49,6 +49,8 @@ func trivySbom(ociPath string, lm types.LayerMapping, resultChan chan<- types.In
 	if err != nil {
 		result.Status = types.Failed
 		result.Error = errors.Wrap(err, "failed to initialize cache")
+		resultChan <- result
+		return
 	}
 	defer cacheClient.Close()
 
@@ -56,18 +58,24 @@ func trivySbom(ociPath string, lm types.LayerMapping, resultChan chan<- types.In
 	if err != nil {
 		result.Status = types.Failed
 		result.Error = errors.Wrap(err, "failed to open archived image")
+		resultChan <- result
+		return
 	}
 
 	art, err := aimage.NewArtifact(img, cacheClient, artifact.Option{})
 	if err != nil {
 		result.Status = types.Failed
 		result.Error = errors.Wrap(err, "failed to create new artifact")
+		resultChan <- result
+		return
 	}
 
 	imageInfo, err := art.Inspect(context.Background())
 	if err != nil {
 		result.Status = types.Failed
 		result.Error = errors.Wrap(err, "failed to inspect image")
+		resultChan <- result
+		return
 	}
 
 	a := applier.NewApplier(cacheClient)
@@ -79,6 +87,8 @@ func trivySbom(ociPath string, lm types.LayerMapping, resultChan chan<- types.In
 			default:
 				result.Status = types.Failed
 				result.Error = errors.Wrap(err, "failed to inspect layer")
+				resultChan <- result
+				return
 			}
 		}
 		for _, app := range mergedLayer.Applications {
@@ -120,7 +130,8 @@ func trivySbom(ociPath string, lm types.LayerMapping, resultChan chan<- types.In
 					if err != nil {
 						result.Status = types.Failed
 						result.Error = errors.Wrapf(err, "failed to create purl from %s", url)
-						break
+						resultChan <- result
+						return
 					}
 					pkg := types.Package{
 						Purl: purl.String(),
