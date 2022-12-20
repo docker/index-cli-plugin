@@ -49,7 +49,7 @@ func TestNodeDetector(t *testing.T) {
 		t.Errorf("Expected package missing")
 	}
 	node := packages[0]
-	if node.Purl != "pkg:github/nodejs/node@19.0.0" {
-		t.Errorf("Wrong nodejs version detected")
+	if node.Purl != "pkg:github/nodejs/node@16.14.2" {
+		t.Errorf("Wrong nodejs version detected %s", node.Version)
 	}
 }
