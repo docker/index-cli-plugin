@@ -87,26 +87,28 @@ func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, error
 	err := cache.StoreImage()
 	defer cache.Cleanup()
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to copy image")
+		return nil, errors.Wrap(err, "failed to copy image")
 	}
 
-	lm := createLayerMapping(*cache.Image)
-
+	lm, err := createLayerMapping(cache)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to index image")
+	}
 	s := internal.StartSpinner("info", "Indexing", cli.Out().IsTerminal())
 	defer s.Stop()
 	trivyResultChan := make(chan types.IndexResult)
 	syftResultChan := make(chan types.IndexResult)
-	go trivySbom(cache.ImagePath, lm, trivyResultChan)
-	go syftSbom(cache.ImagePath, lm, syftResultChan)
+	go trivySbom(cache, lm, trivyResultChan)
+	go syftSbom(cache, lm, syftResultChan)
 
 	trivyResult := <-trivyResultChan
 	syftResult := <-syftResultChan
 
 	if trivyResult.Error != nil {
-		return nil, errors.Wrapf(trivyResult.Error, "failed to index image")
+		return nil, errors.Wrap(trivyResult.Error, "failed to index image")
 	}
 	if syftResult.Error != nil {
-		return nil, errors.Wrapf(syftResult.Error, "failed to index image")
+		return nil, errors.Wrap(syftResult.Error, "failed to index image")
 	}
 
 	trivyResult.Packages, err = types.NormalizePackages(trivyResult.Packages)
@@ -120,10 +122,14 @@ func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, error
 	s.Stop()
 	skill.Log.Infof(`Indexed %d packages`, len(packages))
 
-	manifest, _ := (*cache.Image).RawManifest()
-	config, _ := (*cache.Image).RawConfigFile()
-	c, _ := (*cache.Image).ConfigFile()
-	m, _ := (*cache.Image).Manifest()
+	rawManifest := cache.Source.Image.Metadata.RawManifest
+	rawConfig := cache.Source.Image.Metadata.RawConfig
+
+	var manifest v1.Manifest
+	err = json.Unmarshal(rawManifest, &manifest)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal manifest")
+	}
 
 	sbom := types.Sbom{
 		Artifacts: packages,
@@ -132,17 +138,17 @@ func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, error
 			Image: types.ImageSource{
 				Name:        cache.Name,
 				Digest:      cache.Digest,
-				Manifest:    m,
-				Config:      c,
-				RawManifest: base64.StdEncoding.EncodeToString(manifest),
-				RawConfig:   base64.StdEncoding.EncodeToString(config),
+				Manifest:    &manifest,
+				Config:      &cache.Source.Image.Metadata.Config,
+				RawManifest: base64.StdEncoding.EncodeToString(rawManifest),
+				RawConfig:   base64.StdEncoding.EncodeToString(rawConfig),
 				Distro:      syftResult.Distro,
 				Platform: types.Platform{
-					Os:           c.OS,
-					Architecture: c.Architecture,
-					Variant:      c.Variant,
+					Os:           cache.Source.Image.Metadata.Config.OS,
+					Architecture: cache.Source.Image.Metadata.Config.Architecture,
+					Variant:      cache.Source.Image.Metadata.Config.Variant,
 				},
-				Size: m.Config.Size,
+				Size: cache.Source.Image.Metadata.Size,
 			},
 		},
 		Descriptor: types.Descriptor{
@@ -160,11 +166,11 @@ func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, error
 	if err == nil {
 		err = os.MkdirAll(filepath.Dir(sbomFilePath), os.ModePerm)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed create to sbom folder")
+			return nil, errors.Wrap(err, "failed create to sbom folder")
 		}
 		err = os.WriteFile(sbomFilePath, js, 0644)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to write sbom")
+			return nil, errors.Wrap(err, "failed to write sbom")
 		}
 	}
 
@@ -191,7 +197,8 @@ func cachedSbom(sbomFilePath string) *types.Sbom {
 	return nil
 }
 
-func createLayerMapping(img v1.Image) types.LayerMapping {
+func createLayerMapping(cache *registry.ImageCache) (*types.LayerMapping, error) {
+	skill.Log.Debugf("Creating layer mapping")
 	lm := types.LayerMapping{
 		ByDiffId:        make(map[string]string, 0),
 		ByDigest:        make(map[string]string, 0),
@@ -199,22 +206,21 @@ func createLayerMapping(img v1.Image) types.LayerMapping {
 		DigestByOrdinal: make(map[int]string, 0),
 		OrdinalByDiffId: make(map[string]int, 0),
 	}
-	config, _ := img.ConfigFile()
-	diffIds := config.RootFS.DiffIDs
-	manifest, _ := img.Manifest()
-	layers := manifest.Layers
+
+	diffIds := cache.Source.Image.Metadata.Config.RootFS.DiffIDs
+	layers := cache.Source.Metadata.ImageMetadata.Layers
 
 	for i := range layers {
 		layer := layers[i]
 		diffId := diffIds[i]
 
-		lm.ByDiffId[diffId.String()] = layer.Digest.String()
-		lm.ByDigest[layer.Digest.String()] = diffId.String()
+		lm.ByDiffId[diffId.String()] = layer.Digest
+		lm.ByDigest[layer.Digest] = diffId.String()
 		lm.OrdinalByDiffId[diffId.String()] = i
 		lm.DiffIdByOrdinal[i] = diffId.String()
-		lm.DigestByOrdinal[i] = layer.Digest.String()
+		lm.DigestByOrdinal[i] = layer.Digest
 	}
 
 	skill.Log.Debugf("Created layer mapping")
-	return lm
+	return &lm, nil
 }

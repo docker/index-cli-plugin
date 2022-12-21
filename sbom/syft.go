@@ -30,6 +30,7 @@ import (
 	"github.com/anchore/syft/syft/pkg/cataloger/deb"
 	"github.com/anchore/syft/syft/pkg/cataloger/rpm"
 	"github.com/anchore/syft/syft/source"
+	"github.com/docker/index-cli-plugin/registry"
 	"github.com/docker/index-cli-plugin/sbom/detect"
 	"github.com/docker/index-cli-plugin/sbom/util"
 	"github.com/docker/index-cli-plugin/types"
@@ -38,7 +39,7 @@ import (
 
 type packageMapping map[string]*stereoscopeimage.Layer
 
-func syftSbom(ociPath string, lm types.LayerMapping, resultChan chan<- types.IndexResult) {
+func syftSbom(cache *registry.ImageCache, lm *types.LayerMapping, resultChan chan<- types.IndexResult) {
 	result := types.IndexResult{
 		Name:     "syft",
 		Status:   types.Success,
@@ -47,27 +48,7 @@ func syftSbom(ociPath string, lm types.LayerMapping, resultChan chan<- types.Ind
 
 	defer close(resultChan)
 
-	im := stereoscopeimage.OciDirectorySource
-	if strings.HasSuffix(ociPath, ".tar") {
-		im = stereoscopeimage.DockerTarballSource
-	}
-
-	i := source.Input{
-		Scheme:      source.ImageScheme,
-		ImageSource: im,
-		Location:    ociPath,
-	}
-	src, cleanup, err := source.New(i, nil, nil)
-	if err != nil {
-		result.Status = types.Failed
-		result.Error = errors.Wrap(err, "failed to create image source")
-		resultChan <- result
-		return
-
-	}
-	defer cleanup()
-
-	packageCatalog, packageRelationships, distro, err := syft.CatalogPackages(src, cataloger.DefaultConfig())
+	packageCatalog, packageRelationships, distro, err := syft.CatalogPackages(cache.Source, cataloger.DefaultConfig())
 	if err != nil {
 		result.Status = types.Failed
 		result.Error = errors.Wrap(err, "failed to index image")
@@ -80,7 +61,7 @@ func syftSbom(ociPath string, lm types.LayerMapping, resultChan chan<- types.Ind
 	result.Distro = d
 
 	pm := make(packageMapping, 0)
-	for _, layer := range src.Image.Layers {
+	for _, layer := range cache.Source.Image.Layers {
 		layerPkgs := make([]pkg2.Package, 0)
 		res := util.NewSingleLayerResolver(layer)
 		apkPkgs, _, err := apkdb.NewApkdbCataloger().Catalog(res)
@@ -139,7 +120,7 @@ func syftSbom(ociPath string, lm types.LayerMapping, resultChan chan<- types.Ind
 		result.Packages = append(result.Packages, pkg...)
 	}
 
-	result.Packages = append(result.Packages, detect.AdditionalPackages(result.Packages, *src, lm)...)
+	result.Packages = append(result.Packages, detect.AdditionalPackages(result.Packages, cache.Source, lm)...)
 	resultChan <- result
 }
 
@@ -150,7 +131,7 @@ type sourcePackage struct {
 	relationship       string
 }
 
-func toPackage(p pkg2.Package, rels []artifact.Relationship, qualifiers map[string]string, lm types.LayerMapping, pm packageMapping) []types.Package {
+func toPackage(p pkg2.Package, rels []artifact.Relationship, qualifiers map[string]string, lm *types.LayerMapping, pm packageMapping) []types.Package {
 	pkg := types.Package{
 		Purl:      p.PURL,
 		Licenses:  p.Licenses,
@@ -293,10 +274,11 @@ func toPackage(p pkg2.Package, rels []artifact.Relationship, qualifiers map[stri
 	// fix up the package manager files
 	for i, loc := range pkg.Locations {
 		if loc.Path == "/lib/apk/db/installed" || loc.Path == "/var/lib/dpkg/status" || loc.Path == "/var/lib/rpm/Packages" {
-			layer := pm[toKey(p)]
-			// the stereoscope layers use diff_ids internally as their digest
-			pkg.Locations[i].DiffId = layer.Metadata.Digest
-			pkg.Locations[i].Digest = lm.ByDiffId[layer.Metadata.Digest]
+			if layer, ok := pm[toKey(p)]; ok {
+				// the stereoscope layers use diff_ids internally as their digest
+				pkg.Locations[i].DiffId = layer.Metadata.Digest
+				pkg.Locations[i].Digest = lm.ByDiffId[layer.Metadata.Digest]
+			}
 		}
 	}
 

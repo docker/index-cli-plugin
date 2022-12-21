@@ -28,7 +28,7 @@ import (
 	"github.com/docker/index-cli-plugin/types"
 )
 
-type PackageDetector = func(packages []types.Package, image source.Source, lm types.LayerMapping) []types.Package
+type PackageDetector = func(packages []types.Package, image *source.Source, lm *types.LayerMapping) []types.Package
 
 var detectors []PackageDetector
 
@@ -36,7 +36,7 @@ func init() {
 	detectors = []PackageDetector{nodePackageDetector()}
 }
 
-func AdditionalPackages(packages []types.Package, image source.Source, lm types.LayerMapping) []types.Package {
+func AdditionalPackages(packages []types.Package, image *source.Source, lm *types.LayerMapping) []types.Package {
 	additionalPackages := make([]types.Package, 0)
 	for _, d := range detectors {
 		additionalPackages = append(additionalPackages, d(packages, image, lm)...)
@@ -45,7 +45,7 @@ func AdditionalPackages(packages []types.Package, image source.Source, lm types.
 }
 
 func stringsNodeDetector(executable string, versionEnvVar string, expr *regexp.Regexp, pkg types.Package, filterFunc func(purl string) bool) PackageDetector {
-	return func(packages []types.Package, image source.Source, lm types.LayerMapping) []types.Package {
+	return func(packages []types.Package, image *source.Source, lm *types.LayerMapping) []types.Package {
 		// Already found via package manager
 		for _, p := range packages {
 			if filterFunc(p.Purl) {
