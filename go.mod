@@ -7,7 +7,7 @@ require (
 	github.com/anchore/stereoscope v0.0.0-20221006201143-d24c9d626b33
 	github.com/anchore/syft v0.62.1
 	github.com/aquasecurity/trivy v0.30.4
-	github.com/atomist-skills/go-skill v0.0.6-0.20221003172518-c3d268e1f3f1
+	github.com/atomist-skills/go-skill v0.0.6-0.20221221214636-a7de163fd901
 	github.com/briandowns/spinner v1.12.0
 	github.com/docker/cli v20.10.21+incompatible
 	github.com/docker/docker v20.10.17+incompatible
