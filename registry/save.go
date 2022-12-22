@@ -29,6 +29,7 @@ import (
 	"github.com/atomist-skills/go-skill"
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/index-cli-plugin/internal"
+	"github.com/dustin/go-humanize"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -36,6 +37,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/empty"
 	"github.com/google/go-containerregistry/pkg/v1/layout"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 )
@@ -75,6 +77,7 @@ type ImageCache struct {
 	ImagePath string
 	Ref       *name.Reference
 
+	remote        bool
 	copy          bool
 	cli           command.Cli
 	sourceCleanup func()
@@ -85,6 +88,7 @@ func (c *ImageCache) StoreImage() error {
 		return nil
 	}
 	skill.Log.Debugf("Copying image to %s", c.ImagePath)
+	var imageSource stereoscopeimage.Source
 
 	if format := os.Getenv("ATOMIST_CACHE_FORMAT"); format == "" || format == "oci" {
 		spinner := internal.StartSpinner("info", "Copying image", c.cli.Out().IsTerminal())
@@ -100,70 +104,105 @@ func (c *ImageCache) StoreImage() error {
 			return err
 		}
 
-		input := source.Input{
-			Scheme:      source.ImageScheme,
-			ImageSource: stereoscopeimage.OciDirectorySource,
-			Location:    c.ImagePath,
-		}
-		src, cleanup, err := source.New(input, nil, nil)
-		if err != nil {
-			return errors.Wrap(err, "failed to create new source")
-		}
-		c.Source = src
-		c.sourceCleanup = cleanup
+		imageSource = stereoscopeimage.OciDirectorySource
 
 		spinner.Stop()
-		skill.Log.Infof("Copied image")
-		return nil
-
 	} else if format == "tar" {
-		spinner := internal.StartSpinner("info", "Copying image", c.cli.Out().IsTerminal())
-		defer spinner.Stop()
-		tempTarFile, err := os.Create(c.ImagePath)
-		if err != nil {
-			return errors.Wrap(err, "unable to create temp file for image")
-		}
-		defer func() {
-			err := tempTarFile.Close()
-			if err != nil {
-				skill.Log.Errorf("unable to close temp file (%s): %w", tempTarFile.Name(), err)
+		if c.remote {
+			u := make(chan v1.Update, 0)
+			errchan := make(chan error)
+			go func() {
+				if err := tarball.WriteToFile(c.ImagePath, *c.Ref, *c.Image, tarball.WithProgress(u)); err != nil {
+					errchan <- errors.Wrapf(err, "failed to write tmp image archive")
+				}
+				errchan <- nil
+			}()
+
+			var update v1.Update
+			var err error
+			var pp int64
+			spinner := internal.StartSpinner("info", "Copying image", c.cli.Out().IsTerminal())
+			defer spinner.Stop()
+			loop := true
+			for loop {
+				select {
+				case update = <-u:
+					if update.Total > 0 {
+						p := 100 * update.Complete / update.Total
+						if pp != p {
+							spinner.WithFields(internal.Fields{
+								"event":    "progress",
+								"total":    update.Total,
+								"complete": update.Complete,
+							}).Update(fmt.Sprintf("Copying image %d%% %s/%s", p, humanize.Bytes(uint64(update.Complete)), humanize.Bytes(uint64(update.Total))))
+							pp = p
+						}
+					}
+				case err = <-errchan:
+					if err != nil {
+						return err
+					} else {
+						spinner.Stop()
+						skill.Log.Infof("Copied image")
+						loop = false
+					}
+				}
 			}
-		}()
 
-		readCloser, err := c.cli.Client().ImageSave(context.Background(), []string{c.Id})
-		if err != nil {
-			return errors.Wrap(err, "unable to save image tar")
-		}
-		defer func() {
-			err := readCloser.Close()
+		} else {
+			spinner := internal.StartSpinner("info", "Copying image", c.cli.Out().IsTerminal())
+			defer spinner.Stop()
+			tempTarFile, err := os.Create(c.ImagePath)
 			if err != nil {
-				skill.Log.Errorf("unable to close temp file (%s): %w", tempTarFile.Name(), err)
+				return errors.Wrap(err, "unable to create temp file for image")
 			}
-		}()
+			defer func() {
+				err := tempTarFile.Close()
+				if err != nil {
+					skill.Log.Errorf("unable to close temp file (%s): %w", tempTarFile.Name(), err)
+				}
+			}()
 
-		nBytes, err := io.Copy(tempTarFile, readCloser)
-		if err != nil {
-			return fmt.Errorf("unable to save image to tar: %w", err)
-		}
-		if nBytes == 0 {
-			return errors.New("cannot provide an empty image")
+			readCloser, err := c.cli.Client().ImageSave(context.Background(), []string{c.Id})
+			if err != nil {
+				return errors.Wrap(err, "unable to save image tar")
+			}
+			defer func() {
+				err := readCloser.Close()
+				if err != nil {
+					skill.Log.Errorf("unable to close temp file (%s): %w", tempTarFile.Name(), err)
+				}
+			}()
+
+			nBytes, err := io.Copy(tempTarFile, readCloser)
+			if err != nil {
+				return fmt.Errorf("unable to save image to tar: %w", err)
+			}
+			if nBytes == 0 {
+				return errors.New("cannot provide an empty image")
+			}
+			spinner.Stop()
 		}
 
-		input := source.Input{
-			Scheme:      source.ImageScheme,
-			ImageSource: stereoscopeimage.DockerTarballSource,
-			Location:    c.ImagePath,
-		}
-		src, cleanup, err := source.New(input, nil, nil)
-		if err != nil {
-			return errors.Wrap(err, "failed to create new source")
-		}
-		c.Source = src
-		c.sourceCleanup = cleanup
-
-		spinner.Stop()
-		skill.Log.Infof("Copied image")
+		imageSource = stereoscopeimage.DockerTarballSource
 	}
+
+	skill.Log.Debugf("Parsing image")
+	input := source.Input{
+		Scheme:      source.ImageScheme,
+		ImageSource: imageSource,
+		Location:    c.ImagePath,
+	}
+	src, cleanup, err := source.New(input, nil, nil)
+	if err != nil {
+		return errors.Wrap(err, "failed to create new image source")
+	}
+	c.Source = src
+	c.sourceCleanup = cleanup
+
+	skill.Log.Debugf("Parsed image")
+	skill.Log.Infof("Copied image")
+
 	return nil
 }
 
@@ -243,6 +282,7 @@ func SaveImage(image string, cli command.Cli) (*ImageCache, error) {
 			Ref:       &ref,
 			ImagePath: imagePath,
 			copy:      true,
+			remote:    false,
 			cli:       cli,
 		}, nil
 	}
@@ -279,6 +319,7 @@ func SaveImage(image string, cli command.Cli) (*ImageCache, error) {
 		Ref:       &ref,
 		ImagePath: imagePath,
 		copy:      true,
+		remote:    true,
 		cli:       cli,
 	}, nil
 }
