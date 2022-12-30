@@ -32,11 +32,12 @@ import (
 	"github.com/aquasecurity/trivy/pkg/fanal/cache"
 	"github.com/aquasecurity/trivy/pkg/fanal/image"
 	"github.com/aquasecurity/trivy/pkg/fanal/utils"
+	"github.com/docker/index-cli-plugin/registry"
 	"github.com/docker/index-cli-plugin/types"
 	"github.com/pkg/errors"
 )
 
-func trivySbom(ociPath string, lm types.LayerMapping, resultChan chan<- types.IndexResult) {
+func trivySbom(cache *registry.ImageCache, lm *types.LayerMapping, resultChan chan<- types.IndexResult) {
 	result := types.IndexResult{
 		Name:     "trivy",
 		Status:   types.Success,
@@ -54,7 +55,7 @@ func trivySbom(ociPath string, lm types.LayerMapping, resultChan chan<- types.In
 	}
 	defer cacheClient.Close()
 
-	img, err := image.NewArchiveImage(ociPath)
+	img, err := image.NewArchiveImage(cache.ImagePath)
 	if err != nil {
 		result.Status = types.Failed
 		result.Error = errors.Wrap(err, "failed to open archived image")

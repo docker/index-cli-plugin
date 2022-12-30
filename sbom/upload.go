@@ -33,16 +33,10 @@ import (
 	"olympos.io/encoding/edn"
 )
 
+type TransactionMaker = func() skill.Transaction
+
 // UploadSbom transact an image and its data into the data plane
 func UploadSbom(sb *types.Sbom, workspace string, apikey string) error {
-	host, name, err := parseReference(sb)
-	if err != nil {
-		return errors.Wrapf(err, "failed to obtain host and repository")
-	}
-	config := (*sb).Source.Image.Config
-	manifest := (*sb).Source.Image.Manifest
-
-	now := time.Now()
 	correlationId := uuid.NewString()
 	context := skill.RequestContext{
 		Event: skill.EventIncoming{
@@ -51,7 +45,55 @@ func UploadSbom(sb *types.Sbom, workspace string, apikey string) error {
 			Token:       apikey,
 		},
 	}
-	transaction := context.NewTransaction().Ordered()
+
+	newTransaction := context.NewTransaction
+	image, err := transactSbom(sb, newTransaction)
+	if err != nil {
+		return errors.Wrap(err, "failed to transact image")
+	}
+
+	imageName := ""
+	if image.Repository.Host != "hub.docker.com" {
+		imageName = image.Repository.Host + "/"
+	}
+	imageName += image.Repository.Name
+
+	skill.Log.Infof("Inspect image at https://dso.docker.com/%s/overview/images/%s/digests/%s", workspace, imageName, image.Digest)
+
+	return nil
+}
+
+func sendSbom(sb *types.Sbom, entities chan<- string) error {
+	correlationId := uuid.NewString()
+	context := skill.RequestContext{
+		Event: skill.EventIncoming{
+			ExecutionId: correlationId,
+		},
+	}
+
+	newTransaction := func() skill.Transaction {
+		return context.NewTransactionWithTransactor(func(entitiesString string) {
+			entities <- entitiesString
+		})
+	}
+	_, err := transactSbom(sb, newTransaction)
+	if err != nil {
+		return errors.Wrap(err, "failed to transact image")
+	}
+
+	return nil
+}
+
+func transactSbom(sb *types.Sbom, newTransaction func() skill.Transaction) (*ImageEntity, error) {
+	now := time.Now()
+	host, name, err := parseReference(sb)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to obtain host and repository")
+	}
+	config := (*sb).Source.Image.Config
+	manifest := (*sb).Source.Image.Manifest
+
+	transaction := newTransaction().Ordered()
 	ports := parsePorts(config)
 	env, envVars := parseEnvVars(config)
 	sha := parseSha(config)
@@ -111,7 +153,7 @@ func UploadSbom(sb *types.Sbom, workspace string, apikey string) error {
 		image.Sha = sha
 	}
 
-	if len(*sb.Source.Image.Tags) > 0 {
+	if sb.Source.Image.Tags != nil && len(*sb.Source.Image.Tags) > 0 {
 		image.Tags = &skill.ManyRef{Add: *sb.Source.Image.Tags}
 
 		for _, t := range *sb.Source.Image.Tags {
@@ -136,13 +178,13 @@ func UploadSbom(sb *types.Sbom, workspace string, apikey string) error {
 	// transact the image with all its metadata (repo, tags, layers, blobs, ports, env etc)
 	err = transaction.AddEntities(image, platform).Transact()
 	if err != nil {
-		return errors.Wrapf(err, "failed to transact image")
+		return nil, errors.Wrapf(err, "failed to transact image")
 	}
 
 	// transact all packages in chunks
 	packageChunks := internal.ChunkSlice(sb.Artifacts, 20)
 	for _, packages := range packageChunks {
-		transaction := context.NewTransaction().Ordered()
+		transaction := newTransaction().Ordered()
 
 		image = ImageEntity{
 			Digest:    sb.Source.Image.Digest,
@@ -186,7 +228,7 @@ func UploadSbom(sb *types.Sbom, workspace string, apikey string) error {
 		image.Dependencies = &skill.ManyRef{Add: transaction.EntityRefs("package/dependency")}
 		err := transaction.AddEntities(image).Transact()
 		if err != nil {
-			return errors.Wrapf(err, "failed to transact packages")
+			return nil, errors.Wrapf(err, "failed to transact packages")
 		}
 	}
 
@@ -194,20 +236,11 @@ func UploadSbom(sb *types.Sbom, workspace string, apikey string) error {
 		Digest:    sb.Source.Image.Digest,
 		SbomState: Indexed,
 	}
-	err = context.NewTransaction().Ordered().AddEntities(image).Transact()
+	err = newTransaction().Ordered().AddEntities(image).Transact()
 	if err != nil {
-		return errors.Wrapf(err, "failed to transact packages")
+		return nil, errors.Wrapf(err, "failed to transact packages")
 	}
-
-	imageName := ""
-	if host != "hub.docker.com" {
-		imageName = host + "/"
-	}
-	imageName += name
-
-	skill.Log.Infof("Inspect image at https://dso.docker.com/%s/overview/images/%s/digests/%s", workspace, imageName, image.Digest)
-
-	return nil
+	return &image, nil
 }
 
 func digestChainIds(manifest *v1.Manifest) []digest.Digest {

@@ -107,8 +107,8 @@ type ImageSource struct {
 	Name        string         `json:"name"`
 	Digest      string         `json:"digest"`
 	Tags        *[]string      `json:"tags,omitempty"`
-	Manifest    *v1.Manifest   `json:"manifest"`
-	Config      *v1.ConfigFile `json:"config"`
+	Manifest    *v1.Manifest   `json:"manifest,omitempty"`
+	Config      *v1.ConfigFile `json:"config,omitempty"`
 	RawManifest string         `json:"raw_manifest"`
 	RawConfig   string         `json:"raw_config"`
 	Distro      Distro         `json:"distro"`

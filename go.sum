@@ -209,6 +209,8 @@ github.com/asaskevich/govalidator v0.0.0-20190424111038-f61b66f89f4a/go.mod h1:l
 github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d h1:Byv0BzEl3/e6D5CLfI0j/7hiIEtvGVFPCZ7Ei2oq8iQ=
 github.com/atomist-skills/go-skill v0.0.6-0.20221003172518-c3d268e1f3f1 h1:EzSOh9LLtL/3IzbPUFSp/6OF4DrgiCPxCC3x3jjD9Bs=
 github.com/atomist-skills/go-skill v0.0.6-0.20221003172518-c3d268e1f3f1/go.mod h1:DRmwrZL5kG68Mn8VDw/Xr7rDhyl+laD7NFHIrQr54yo=
+github.com/atomist-skills/go-skill v0.0.6-0.20221221214636-a7de163fd901 h1:0fqUAo4MmWXnWIDCG7JBe903M3WJ+tqQetPIkVfcXKo=
+github.com/atomist-skills/go-skill v0.0.6-0.20221221214636-a7de163fd901/go.mod h1:DRmwrZL5kG68Mn8VDw/Xr7rDhyl+laD7NFHIrQr54yo=
 github.com/aws/aws-sdk-go v1.15.11/go.mod h1:mFuSZ37Z9YOHbQEwBWztmVzqXrEkub65tZoCYDt7FT0=
 github.com/aws/aws-sdk-go v1.44.46 h1:BsKENvu24eXg7CWQ2wJAjKbDFkGP+hBtxKJIR3UdcB8=
 github.com/aws/aws-sdk-go v1.44.46/go.mod h1:y4AeaBuwd2Lk+GepC1E9v0qOiTws0MIWAX4oIKwKHZo=
