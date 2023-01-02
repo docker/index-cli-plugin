@@ -72,7 +72,7 @@ func SendFileHashes(image string, tx chan<- string) error {
 			content, err := res.FileContentsByLocation(source.NewLocation(string(ref.RealPath)))
 			if err == nil {
 				b, _ := io.ReadAll(content)
-				content.Close()
+				content.Close() //nolint:errcheck
 				h := sha256.New()
 				h.Write(b)
 				hash := fmt.Sprintf("sha256:%x", h.Sum(nil))

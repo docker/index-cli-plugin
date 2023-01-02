@@ -254,7 +254,7 @@ func readWorkspace(args []string, cli command.Cli) (string, error) {
 	} else if v, ok := os.LookupEnv("ATOMIST_WORKSPACE"); v != "" && ok {
 		workspace = v
 	} else {
-		fmt.Fprintf(cli.Out(), "Workspace: ")
+		_, _ = fmt.Fprintf(cli.Out(), "Workspace: ")
 
 		workspace = readInput(cli.In(), cli.Out())
 		if workspace == "" {
@@ -282,12 +282,12 @@ func readApiKey(apiKeyStdin bool, cli command.Cli) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		fmt.Fprintf(cli.Out(), "API key: ")
-		term.DisableEcho(cli.In().FD(), oldState)
+		_, _ = fmt.Fprintf(cli.Out(), "API key: ")
+		_ = term.DisableEcho(cli.In().FD(), oldState)
 
 		apiKey = readInput(cli.In(), cli.Out())
-		fmt.Fprint(cli.Out(), "\n")
-		term.RestoreTerminal(cli.In().FD(), oldState)
+		_, _ = fmt.Fprint(cli.Out(), "\n")
+		_ = term.RestoreTerminal(cli.In().FD(), oldState)
 		if apiKey == "" {
 			return "", errors.Errorf("Error: API key required")
 		}
@@ -299,7 +299,7 @@ func readInput(in io.Reader, out io.Writer) string {
 	reader := bufio.NewReader(in)
 	line, _, err := reader.ReadLine()
 	if err != nil {
-		fmt.Fprintln(out, err.Error())
+		_, _ = fmt.Fprintln(out, err.Error())
 		os.Exit(1)
 	}
 	return string(line)
