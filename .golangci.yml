@@ -1,0 +1,65 @@
+linters:
+  enable: # defaults @ top
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - typecheck
+    - unused
+    - unconvert
+    - gofmt
+    - misspell
+    - bodyclose
+    - revive
+    - gocyclo
+    - whitespace
+    - sqlclosecheck
+    - goimports
+    - unparam
+run:
+  build-tags:
+    - entitlement_integration
+    - system_tests
+  deadline: 2m
+  allow-parallel-runners: true
+  concurrency: 2
+  tests: true
+  skip-dirs:
+    - charts
+    - vendor
+    - docs
+    - eula
+    - eusa
+    - infra
+    - swagger
+    - mocks
+  skip-files:
+    - '.*\\.html'
+    - '.*\\.tmpl'
+linters-settings:
+  gosimple:
+    go: '1.19'
+  staticcheck:
+    go: '1.19'
+  stylecheck:
+    go: '1.19'
+  unused:
+    go: '1.19'
+  revive:
+    rules:
+      - name: exported
+        disabled: true
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-use-default: false
+  exclude-rules:
+    # https://github.com/timakin/bodyclose/issues/11
+    # We close the body inside a function in the SDK. This is not seen by the linter causing false
+    # positives during lint. The most common place these are called are in lib. Disable for now.
+    - linters:
+        - bodyclose
+      source: '\.DoJSON|\.Do|\.doRequest\('
+output:
+  format: tab
