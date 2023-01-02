@@ -136,6 +136,9 @@ func ForBaseImageInIndex(digest digest.Digest, workspace string, apiKey string) 
 func ForBaseImageWithoutCve(cve string, name string, sb *types.Sbom, workspace string, apiKey string) (*[]types.Image, error) {
 	cf := (*sb).Source.Image.Config
 	resp, err := query(fmt.Sprintf(baseImageCveQuery, cve, name, cf.OS, cf.Architecture, cf.Variant), "base_image_cve_query", workspace, apiKey)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to query for base image without CVE")
+	}
 
 	var result ImageQueryResult
 	err = edn.NewDecoder(resp.Body).Decode(&result)
@@ -174,6 +177,9 @@ func ForBaseImageWithoutCve(cve string, name string, sb *types.Sbom, workspace s
 // ForBaseImageInDb returns images with matching digest in :docker.image/blob-digest or :docker.image/diff-chain-id
 func ForBaseImageInDb(digest digest.Digest, workspace string, apiKey string) (*[]types.Image, error) {
 	resp, err := query(fmt.Sprintf(baseImageQuery, digest), "base_image_query", workspace, apiKey)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to query for base image in DB")
+	}
 
 	var result ImageQueryResult
 	err = edn.NewDecoder(resp.Body).Decode(&result)
@@ -204,6 +210,9 @@ func ForBaseImageInDb(digest digest.Digest, workspace string, apiKey string) (*[
 
 func ForRepositoryInDb(repo string, workspace string, apiKey string) (*types.Repository, error) {
 	resp, err := query(fmt.Sprintf(repositoryQuery, repo), "repository_query", workspace, apiKey)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to query for repository in DB")
+	}
 
 	var result RepositoryQueryResult
 	err = edn.NewDecoder(resp.Body).Decode(&result)

@@ -56,7 +56,7 @@ func trivySbom(cache *registry.ImageCache, lm *types.LayerMapping, resultChan ch
 		resultChan <- result
 		return
 	}
-	defer cacheClient.Close()
+	defer cacheClient.Close() //nolint:errcheck
 
 	img, err := image.NewArchiveImage(cache.ImagePath)
 	if err != nil {
