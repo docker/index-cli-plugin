@@ -177,9 +177,7 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 			if err != nil {
 				return err
 			}
-			err = sbom.UploadSbom(sb, workspace, apiKey)
-
-			return nil
+			return sbom.UploadSbom(sb, workspace, apiKey)
 		},
 	}
 	uploadCommandFlags := uploadCommand.Flags()

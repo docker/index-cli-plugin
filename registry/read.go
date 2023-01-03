@@ -31,6 +31,9 @@ func ReadImage(name string, path string) (*ImageCache, error) {
 		return nil, errors.Wrapf(err, "failed to read manifest index at %s", path)
 	}
 	mani, err := index.IndexManifest()
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to read manifest index at %s", path)
+	}
 	hash := mani.Manifests[0].Digest
 	img, _ := index.Image(hash)
 

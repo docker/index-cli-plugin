@@ -42,10 +42,17 @@ type ImageIndexResult struct {
 
 func indexImageAsync(wg *sync.WaitGroup, image string, cli command.Cli, resultChan chan<- ImageIndexResult) {
 	defer wg.Done()
-	sbom, err := IndexImage(image, cli)
-	cves, err := query.ForVulnerabilitiesInGraphQL(sbom)
+	var (
+		sbom *types.Sbom
+		cves *types.VulnerabilitiesByPurls
+		err  error
+	)
+	sbom, err = IndexImage(image, cli)
 	if err == nil {
-		sbom.Vulnerabilities = cves.VulnerabilitiesByPackage
+		cves, err = query.ForVulnerabilitiesInGraphQL(sbom)
+		if err == nil {
+			sbom.Vulnerabilities = cves.VulnerabilitiesByPackage
+		}
 	}
 	resultChan <- ImageIndexResult{
 		Input: image,
@@ -112,9 +119,12 @@ func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, error
 	}
 
 	trivyResult.Packages, err = types.NormalizePackages(trivyResult.Packages)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to normalize packages: %s", cache.Name)
+	}
 	syftResult.Packages, err = types.NormalizePackages(syftResult.Packages)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to normalize packagess: %s", cache.Name)
+		return nil, errors.Wrapf(err, "failed to normalize packages: %s", cache.Name)
 	}
 
 	packages := types.MergePackages(syftResult, trivyResult)
