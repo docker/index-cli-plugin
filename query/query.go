@@ -56,6 +56,7 @@ func CheckAuth(workspace string, apiKey string) (bool, error) {
 	if err != nil {
 		return false, errors.Wrap(err, "failed to check auth")
 	}
+	defer resp.Body.Close() //nolint:errcheck
 	if resp.StatusCode != 200 || err != nil {
 		return false, nil
 	}
@@ -81,6 +82,7 @@ func QueryCves(sb *types.Sbom, cve string, workspace string, apiKey string) (*[]
 		return nil, errors.Wrapf(err, "failed to run query")
 	}
 	var result QueryResult
+	defer resp.Body.Close() //nolint:errcheck
 	err = edn.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to unmarshal response")
