@@ -245,7 +245,6 @@ func ForBaseImageInGraphQL(cfg *v1.ConfigFile) (*types.BaseImagesByDiffIdsQuery,
 	var q types.BaseImagesByDiffIdsQuery
 	err := client.Query(context.Background(), &q, variables)
 	if err != nil {
-		fmt.Sprintf("error %v", err)
 		return nil, errors.Wrapf(err, "failed to run query")
 	}
 	count := 0
@@ -280,7 +279,6 @@ func ForImageInGraphQL(sb *types.Sbom) (*types.ImageByDigestQuery, error) {
 	var q types.ImageByDigestQuery
 	err := client.Query(context.Background(), &q, variables)
 	if err != nil {
-		fmt.Sprintf("error %v", err)
 		return nil, errors.Wrapf(err, "failed to run query")
 	}
 	if q.ImageDetailsByDigest.Digest != "" {
