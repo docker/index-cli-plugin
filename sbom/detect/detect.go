@@ -150,5 +150,4 @@ func readStrings(reader io.ReadCloser, expr *regexp.Regexp) [][]string {
 			str = append(str, r)
 		}
 	}
-	return [][]string{}
 }

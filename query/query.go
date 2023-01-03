@@ -151,7 +151,6 @@ func ForVulnerabilitiesInGraphQL(sb *types.Sbom) (*types.VulnerabilitiesByPurls,
 	var q types.VulnerabilitiesByPurls
 	err := client.Query(context.Background(), &q, variables)
 	if err != nil {
-		fmt.Sprintf("error %v", err)
 		return nil, errors.Wrapf(err, "failed to run query")
 	}
 	if len(q.VulnerabilitiesByPackage) > 0 {

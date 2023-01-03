@@ -118,7 +118,7 @@ type ImageSource struct {
 	Distro      Distro         `json:"distro"`
 	Platform    Platform       `json:"platform"`
 	Size        int64          `json:"size"`
-	Details     *BaseImage     `json:"details,omitempty""`
+	Details     *BaseImage     `json:"details,omitempty"`
 }
 
 type Descriptor struct {
