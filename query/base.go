@@ -99,6 +99,7 @@ func ForBaseImageInIndex(digest digest.Digest, workspace string, apiKey string) 
 
 	if resp.StatusCode == 200 {
 		var manifestList []types.IndexManifestList
+		defer resp.Body.Close() //nolint:errcheck
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to read response body")
@@ -141,6 +142,7 @@ func ForBaseImageWithoutCve(cve string, name string, sb *types.Sbom, workspace s
 	}
 
 	var result ImageQueryResult
+	defer resp.Body.Close() //nolint:errcheck
 	err = edn.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to unmarshal response")
@@ -182,6 +184,7 @@ func ForBaseImageInDb(digest digest.Digest, workspace string, apiKey string) (*[
 	}
 
 	var result ImageQueryResult
+	defer resp.Body.Close() //nolint:errcheck
 	err = edn.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to unmarshal response")
@@ -215,6 +218,7 @@ func ForRepositoryInDb(repo string, workspace string, apiKey string) (*types.Rep
 	}
 
 	var result RepositoryQueryResult
+	defer resp.Body.Close() //nolint:errcheck
 	err = edn.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to unmarshal response")
