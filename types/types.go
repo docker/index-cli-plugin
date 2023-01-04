@@ -16,7 +16,9 @@
 
 package types
 
-import v1 "github.com/google/go-containerregistry/pkg/v1"
+import (
+	v1 "github.com/google/go-containerregistry/pkg/v1"
+)
 
 type Score struct {
 	Type  string `edn:"vulnerability.reference.score/type" json:"type"`
@@ -69,6 +71,7 @@ type LayerMapping struct {
 type IndexResult struct {
 	Name     string
 	Packages []Package
+	Secrets  []Secret
 	Status   string
 	Error    error
 	Distro   Distro
@@ -98,9 +101,10 @@ type Platform struct {
 }
 
 type Location struct {
-	Path   string `json:"path"`
-	Digest string `json:"digest"`
-	DiffId string `json:"diff_id"`
+	Path    string `json:"path,omitempty"`
+	Ordinal int    `json:"ordinal,omitempty"`
+	Digest  string `json:"digest,omitempty"`
+	DiffId  string `json:"diff_id,omitempty"`
 }
 
 type ImageSource struct {
@@ -129,10 +133,31 @@ type Source struct {
 	BaseImages []BaseImageMatch `json:"base_images,omitempty"`
 }
 
+type Secret struct {
+	Source   SecretSource    `json:"source"`
+	Findings []SecretFinding `json:"findings"`
+}
+
+type SecretSource struct {
+	Type     string    `json:"type"`
+	Location *Location `json:"location,omitempty"`
+}
+
+type SecretFinding struct {
+	RuleID    string `json:"rule_id"`
+	Category  string `json:"category"`
+	Title     string `json:"title"`
+	Severity  string `json:"severity"`
+	StartLine int    `json:"start_line,omitempty"`
+	EndLine   int    `json:"end_line,omitempty"`
+	Match     string `json:"match"`
+}
+
 type Sbom struct {
 	Source          Source                  `json:"source"`
 	Artifacts       []Package               `json:"artifacts"`
 	Vulnerabilities []VulnerabilitiesByPurl `json:"vulnerabilities,omitempty"`
+	Secrets         []Secret                `json:"secrets,omitempty"`
 	Descriptor      Descriptor              `json:"descriptor"`
 }
 

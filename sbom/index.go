@@ -132,7 +132,6 @@ func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, error
 	}
 
 	sbom := types.Sbom{
-		Artifacts: packages,
 		Source: types.Source{
 			Type: "image",
 			Image: types.ImageSource{
@@ -151,6 +150,8 @@ func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, error
 				Size: cache.Source.Image.Metadata.Size,
 			},
 		},
+		Artifacts: packages,
+		Secrets:   trivyResult.Secrets,
 		Descriptor: types.Descriptor{
 			Name:        "docker-index",
 			Version:     internal.FromBuild().Version,

@@ -17,6 +17,7 @@
 package sbom
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/anchore/packageurl-go"
@@ -133,7 +134,7 @@ type sourcePackage struct {
 
 func toPackage(p pkg2.Package, rels []artifact.Relationship, qualifiers map[string]string, lm *types.LayerMapping, pm packageMapping) []types.Package {
 	pkg := types.Package{
-		Purl:      p.PURL,
+		Purl:      getPURL(p),
 		Licenses:  p.Licenses,
 		Locations: make([]types.Location, 0),
 	}
@@ -249,9 +250,10 @@ func toPackage(p pkg2.Package, rels []artifact.Relationship, qualifiers map[stri
 				}
 
 				pkg.Files = append(pkg.Files, types.Location{
-					Path:   path,
-					DiffId: corr.FileSystemID,
-					Digest: lm.ByDiffId[corr.FileSystemID],
+					Path:    path,
+					Ordinal: lm.OrdinalByDiffId[corr.FileSystemID],
+					DiffId:  corr.FileSystemID,
+					Digest:  lm.ByDiffId[corr.FileSystemID],
 				})
 			}
 		}
@@ -265,9 +267,10 @@ func toPackage(p pkg2.Package, rels []artifact.Relationship, qualifiers map[stri
 		}
 
 		pkg.Locations = append(pkg.Locations, types.Location{
-			Path:   path,
-			DiffId: loc.FileSystemID,
-			Digest: lm.ByDiffId[loc.FileSystemID],
+			Path:    path,
+			Ordinal: lm.OrdinalByDiffId[loc.FileSystemID],
+			DiffId:  loc.FileSystemID,
+			Digest:  lm.ByDiffId[loc.FileSystemID],
 		})
 	}
 
@@ -276,6 +279,7 @@ func toPackage(p pkg2.Package, rels []artifact.Relationship, qualifiers map[stri
 		if loc.Path == "/lib/apk/db/installed" || loc.Path == "/var/lib/dpkg/status" || loc.Path == "/var/lib/rpm/Packages" {
 			if layer, ok := pm[toKey(p)]; ok {
 				// the stereoscope layers use diff_ids internally as their digest
+				pkg.Locations[i].Ordinal = lm.OrdinalByDiffId[layer.Metadata.Digest]
 				pkg.Locations[i].DiffId = layer.Metadata.Digest
 				pkg.Locations[i].Digest = lm.ByDiffId[layer.Metadata.Digest]
 			}
@@ -317,6 +321,18 @@ func toPackage(p pkg2.Package, rels []artifact.Relationship, qualifiers map[stri
 	}
 
 	return []types.Package{pkg}
+}
+
+func getPURL(pkp pkg2.Package) string {
+	if pkp.PURL != "" {
+		return pkp.PURL
+	} else {
+		switch pkp.Type {
+		case "apk":
+			return fmt.Sprintf("pkg:alpine/%s@%s", pkp.Name, pkp.Version)
+		}
+	}
+	return ""
 }
 
 func osQualifiers(release *linux.Release) (types.Distro, map[string]string) {
