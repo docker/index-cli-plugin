@@ -208,8 +208,23 @@ func createLayerMapping(cache *registry.ImageCache) (*types.LayerMapping, error)
 		OrdinalByDiffId: make(map[string]int, 0),
 	}
 
-	diffIds := cache.Source.Image.Metadata.Config.RootFS.DiffIDs
-	layers := cache.Source.Metadata.ImageMetadata.Layers
+	rawManifest := cache.Source.Image.Metadata.RawManifest
+	rawConfig := cache.Source.Image.Metadata.RawConfig
+
+	var manifest v1.Manifest
+	err := json.Unmarshal(rawManifest, &manifest)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal manifest")
+	}
+
+	var config v1.ConfigFile
+	err = json.Unmarshal(rawConfig, &config)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal config")
+	}
+
+	layers := manifest.Layers
+	diffIds := config.RootFS.DiffIDs
 
 	li := 0
 	for i, l := range cache.Source.Image.Metadata.Config.History {
@@ -217,11 +232,11 @@ func createLayerMapping(cache *registry.ImageCache) (*types.LayerMapping, error)
 			layer := layers[li]
 			diffId := diffIds[li]
 
-			lm.ByDiffId[diffId.String()] = layer.Digest
-			lm.ByDigest[layer.Digest] = diffId.String()
+			lm.ByDiffId[diffId.String()] = layer.Digest.String()
+			lm.ByDigest[layer.Digest.String()] = diffId.String()
 			lm.OrdinalByDiffId[diffId.String()] = i
 			lm.DiffIdByOrdinal[i] = diffId.String()
-			lm.DigestByOrdinal[i] = layer.Digest
+			lm.DigestByOrdinal[i] = layer.Digest.String()
 			li++
 		}
 	}
