@@ -76,7 +76,7 @@ func SendFileHashes(image string, tx chan<- string) error {
 				h := sha256.New()
 				h.Write(b)
 				hash := fmt.Sprintf("sha256:%x", h.Sum(nil))
-				msg := fmt.Sprintf(`{:path "%s" :hash "%s"}`, ref.RealPath, hash)
+				msg := fmt.Sprintf(`{:path "%s" :hash "%s" :diff-id "%s"}`, ref.RealPath, hash, layer.Metadata.Digest)
 				tx <- msg
 			}
 		}
