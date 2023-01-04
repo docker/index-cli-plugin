@@ -35,3 +35,19 @@ func TestSend(t *testing.T) {
 		t.Errorf("expected 3 transactions, instead got %d", len(transactions))
 	}
 }
+
+func TestSendFileHashes(t *testing.T) {
+	tx := make(chan string, 100)
+	transactions := make([]string, 0)
+
+	err := SendFileHashes("alpine@sha256:c0d488a800e4127c334ad20d61d7bc21b4097540327217dfab52262adc02380c", tx)
+	if err != nil {
+		t.Fail()
+	}
+	for elem := range tx {
+		transactions = append(transactions, elem)
+	}
+	if len(transactions) != 88 {
+		t.Errorf("expected 88 transactions, instead got %d", len(transactions))
+	}
+}
