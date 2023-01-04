@@ -46,7 +46,7 @@ func ReadImage(name string, path string) (*ImageCache, error) {
 	}
 	skill.Log.Debugf("Parse image")
 	skill.Log.Infof("Loaded image")
-	
+
 	return &ImageCache{
 		Id:        hash.String(),
 		Digest:    hash.String(),
