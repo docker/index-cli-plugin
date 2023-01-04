@@ -211,15 +211,19 @@ func createLayerMapping(cache *registry.ImageCache) (*types.LayerMapping, error)
 	diffIds := cache.Source.Image.Metadata.Config.RootFS.DiffIDs
 	layers := cache.Source.Metadata.ImageMetadata.Layers
 
-	for i := range layers {
-		layer := layers[i]
-		diffId := diffIds[i]
+	li := 0
+	for i, l := range cache.Source.Image.Metadata.Config.History {
+		if !l.EmptyLayer {
+			layer := layers[li]
+			diffId := diffIds[li]
 
-		lm.ByDiffId[diffId.String()] = layer.Digest
-		lm.ByDigest[layer.Digest] = diffId.String()
-		lm.OrdinalByDiffId[diffId.String()] = i
-		lm.DiffIdByOrdinal[i] = diffId.String()
-		lm.DigestByOrdinal[i] = layer.Digest
+			lm.ByDiffId[diffId.String()] = layer.Digest
+			lm.ByDigest[layer.Digest] = diffId.String()
+			lm.OrdinalByDiffId[diffId.String()] = i
+			lm.DiffIdByOrdinal[i] = diffId.String()
+			lm.DigestByOrdinal[i] = layer.Digest
+			li++
+		}
 	}
 
 	skill.Log.Debugf("Created layer mapping")

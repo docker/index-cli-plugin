@@ -149,7 +149,7 @@ func trivySbom(cache *registry.ImageCache, lm *types.LayerMapping, resultChan ch
 				Location: &types.Location{
 					Path:    s.FilePath,
 					Ordinal: lm.OrdinalByDiffId[s.Layer.DiffID],
-					Digest:  s.Layer.Digest,
+					Digest:  lm.ByDiffId[s.Layer.DiffID],
 					DiffId:  s.Layer.DiffID,
 				},
 			}))
