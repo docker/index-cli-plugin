@@ -18,7 +18,6 @@ package sbom
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -93,10 +92,9 @@ func trivySbom(cache *registry.ImageCache, lm *types.LayerMapping, resultChan ch
 	}
 	config := &cache.Source.Image.Metadata.Config
 	for o, h := range config.History {
-		js, _ := json.MarshalIndent(h, "", "  ")
 		secrets := scanner.Scan(secret.ScanArgs{
 			FilePath: "history",
-			Content:  js,
+			Content:  []byte(fmt.Sprintf("%s\n%s\n%s", h.CreatedBy, h.Author, h.Comment)),
 		})
 		if len(secrets.Findings) > 0 {
 			result.Secrets = append(result.Secrets, convertSecretFindings(secrets, types.SecretSource{
