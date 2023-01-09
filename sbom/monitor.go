@@ -24,7 +24,7 @@ func WatchImages(cli command.Cli) error {
 		go indexImageWorker(cli, indexJobs)
 	}
 
-	for range time.Tick(time.Second * 5) {
+	for range time.Tick(time.Second * 5) { //nolint:staticcheck
 		images, err := cli.Client().ImageList(context.Background(), types.ImageListOptions{
 			All: false,
 		})
