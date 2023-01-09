@@ -77,7 +77,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           
-      - name: Build and push Docker image on PR
+      - name: Build Docker image on PR
         if: ${{ github.event_name == 'pull_request_target' }}
         id: build-and-push-pr
         uses: docker/build-push-action@ac9327eae2b366085ac7f6a2d02df8aa8ead720a
