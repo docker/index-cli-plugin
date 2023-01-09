@@ -80,13 +80,8 @@ type Image struct {
 }
 
 func ImageTags(image *Image) []string {
-	tags := make([]string, 0)
-	for _, tag := range image.Tags {
-		tags = append(tags, tag)
-	}
-	sort.Slice(tags, func(i, j int) bool {
-		return len(tags[i]) < len(tags[j])
-	})
+	tags := append([]string{}, image.Tags...)
+	sort.Strings(tags)
 	return tags
 }
 

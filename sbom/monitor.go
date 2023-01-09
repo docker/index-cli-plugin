@@ -19,7 +19,7 @@ func init() {
 }
 
 func WatchImages(cli command.Cli) error {
-	indexJobs := make(chan types.ImageSummary, 0)
+	indexJobs := make(chan types.ImageSummary)
 	for w := 1; w <= maxIndexWorkers; w++ {
 		go indexImageWorker(cli, indexJobs)
 	}

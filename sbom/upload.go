@@ -326,9 +326,7 @@ func parseReference(sb *types.Sbom) (string, string, error) {
 		host = "hub.docker.com"
 	}
 	name := ref.Context().RepositoryStr()
-	if strings.HasPrefix(name, "library/") {
-		name = name[len("library/"):]
-	}
+	name = strings.TrimPrefix(name, "library/")
 	return host, name, nil
 }
 

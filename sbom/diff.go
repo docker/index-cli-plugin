@@ -100,12 +100,8 @@ func toPackageName(pkg packageurl.PackageURL) string {
 
 func toImageName(result ImageIndexResult) string {
 	imageName := result.Sbom.Source.Image.Name
-	if strings.HasPrefix(imageName, "index.docker.io/") {
-		imageName = imageName[len("index.docker.io/"):]
-	}
-	if strings.HasPrefix(imageName, "library/") {
-		imageName = imageName[len("library/"):]
-	}
+	imageName = strings.TrimPrefix(imageName, "index.docker.io/")
+	imageName = strings.TrimPrefix(imageName, "library/")
 	return imageName
 }
 
