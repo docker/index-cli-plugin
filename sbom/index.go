@@ -24,14 +24,16 @@ import (
 	"strings"
 	"sync"
 
+	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/pkg/errors"
+
 	"github.com/atomist-skills/go-skill"
+
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/index-cli-plugin/internal"
 	"github.com/docker/index-cli-plugin/query"
 	"github.com/docker/index-cli-plugin/registry"
 	"github.com/docker/index-cli-plugin/types"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/pkg/errors"
 )
 
 type ImageIndexResult struct {
@@ -179,7 +181,7 @@ func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, error
 		if err != nil {
 			return nil, errors.Wrap(err, "failed create to sbom folder")
 		}
-		err = os.WriteFile(sbomFilePath, js, 0644)
+		err = os.WriteFile(sbomFilePath, js, 0o644)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to write sbom")
 		}

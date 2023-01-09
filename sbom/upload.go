@@ -21,9 +21,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/atomist-skills/go-skill"
-	"github.com/docker/index-cli-plugin/internal"
-	"github.com/docker/index-cli-plugin/types"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/uuid"
@@ -31,6 +28,11 @@ import (
 	"github.com/opencontainers/image-spec/identity"
 	"github.com/pkg/errors"
 	"olympos.io/encoding/edn"
+
+	"github.com/atomist-skills/go-skill"
+
+	"github.com/docker/index-cli-plugin/internal"
+	"github.com/docker/index-cli-plugin/types"
 )
 
 type TransactionMaker = func() skill.Transaction

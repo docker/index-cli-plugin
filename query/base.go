@@ -26,14 +26,16 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/atomist-skills/go-skill"
-	"github.com/docker/index-cli-plugin/types"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/hasura/go-graphql-client"
 	"github.com/opencontainers/go-digest"
 	"github.com/opencontainers/image-spec/identity"
 	"github.com/pkg/errors"
 	"olympos.io/encoding/edn"
+
+	"github.com/atomist-skills/go-skill"
+
+	"github.com/docker/index-cli-plugin/types"
 )
 
 type ImageQueryResult struct {
@@ -117,7 +119,7 @@ func ForBaseImageInIndex(digest digest.Digest, workspace string, apiKey string) 
 		}
 		repository, err := ForRepositoryInDb(manifestList[0].Name, workspace, apiKey)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to query for respository")
+			return nil, errors.Wrapf(err, "failed to query for repository")
 		}
 		image := types.Image{
 			Digest:     ii.Digest,
@@ -252,8 +254,8 @@ func ForBaseImageInGraphQL(cfg *v1.ConfigFile) (*types.BaseImagesByDiffIdsQuery,
 		return nil, errors.Wrapf(err, "failed to run query")
 	}
 	count := 0
-	for ii, _ := range q.ImagesByDiffIds {
-		for bi, _ := range q.ImagesByDiffIds[ii].Images {
+	for ii := range q.ImagesByDiffIds {
+		for bi := range q.ImagesByDiffIds[ii].Images {
 			count++
 			q.ImagesByDiffIds[ii].Images[bi].Repository = normalizeRepository(&q.ImagesByDiffIds[ii].Images[bi]).Repository
 		}

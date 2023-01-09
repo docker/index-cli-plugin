@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/anchore/syft/syft/source"
+
 	"github.com/docker/index-cli-plugin/types"
 )
 

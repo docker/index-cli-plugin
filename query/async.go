@@ -20,6 +20,7 @@ import (
 	"sync"
 
 	"github.com/atomist-skills/go-skill"
+
 	"github.com/docker/index-cli-plugin/types"
 )
 

@@ -21,10 +21,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/docker/index-cli-plugin/internal"
-	"github.com/docker/index-cli-plugin/types"
 	"github.com/gookit/color"
 	"github.com/xeonx/timeago"
+
+	"github.com/docker/index-cli-plugin/internal"
+	"github.com/docker/index-cli-plugin/types"
 )
 
 type colors struct {
