@@ -23,7 +23,7 @@ import (
 )
 
 func nodePackageDetector() PackageDetector {
-	expr := regexp.MustCompile("node\\.js/v(.*)")
+	expr := regexp.MustCompile(`node\.js/v(.*)`)
 	pkg := types.Package{
 		Type:        "github",
 		Namespace:   "nodejs",

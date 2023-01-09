@@ -295,7 +295,7 @@ func ForImageInGraphQL(sb *types.Sbom) (*types.ImageByDigestQuery, error) {
 }
 
 func normalizeRepository(image *types.BaseImage) *types.BaseImage {
-	if image.Repository.Host == "hub.docker.com" && strings.Index(image.Repository.Repo, "/") < 0 {
+	if image.Repository.Host == "hub.docker.com" && strings.Contains(image.Repository.Repo, "/") {
 		image.Repository.Badge = "OFFICIAL"
 	}
 	if image.Repository.Badge != "" {

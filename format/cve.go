@@ -102,6 +102,6 @@ func Cves(cve string, cves *[]types.Cve, sb *types.Sbom, remediate bool, dockerC
 			Remediation(remediation)
 		}
 	} else {
-		fmt.Println(fmt.Sprintf("%s not detected", cve))
+		fmt.Printf("%s not detected\n", cve)
 	}
 }
