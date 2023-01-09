@@ -79,7 +79,7 @@ jobs:
           
       - name: Build Docker image on PR
         if: ${{ github.event_name == 'pull_request_target' }}
-        id: build-and-push-pr
+        id: build-pr
         uses: docker/build-push-action@ac9327eae2b366085ac7f6a2d02df8aa8ead720a
         with:
           context: .
