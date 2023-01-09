@@ -10,7 +10,7 @@ tasks:
 
   go:build:
     cmds:
-      - go build -o docker-index -ldflags="-w -s -X 'github.com/docker/index-cli-plugin/internal.version={{.GIT_COMMIT}}'"
+      - go build -o docker-index -ldflags="-w -s -X 'github.com/docker/index-cli-plugin/internal.version={{.GIT_COMMIT}}'" ./cmd/docker-index
     env:
       CGO_ENABLED: 0
     vars:
