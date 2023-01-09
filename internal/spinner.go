@@ -21,10 +21,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/atomist-skills/go-skill"
 	"github.com/briandowns/spinner"
 	"github.com/gookit/color"
 	"github.com/sirupsen/logrus"
+
+	"github.com/atomist-skills/go-skill"
 )
 
 type Fields map[string]interface{}

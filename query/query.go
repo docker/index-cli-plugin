@@ -23,13 +23,15 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/docker/index-cli-plugin/internal"
-	"github.com/docker/index-cli-plugin/types"
 	"github.com/hasura/go-graphql-client"
 
-	"github.com/atomist-skills/go-skill"
+	"github.com/docker/index-cli-plugin/internal"
+	"github.com/docker/index-cli-plugin/types"
+
 	"github.com/pkg/errors"
 	"olympos.io/encoding/edn"
+
+	"github.com/atomist-skills/go-skill"
 )
 
 type CveResult struct {
@@ -101,7 +103,6 @@ func QueryCves(sb *types.Sbom, cve string, workspace string, apiKey string) (*[]
 			}
 		})
 		return &fcves, nil
-
 	} else {
 		return nil, nil
 	}
@@ -111,7 +112,6 @@ func query(query string, name string, workspace string, apiKey string) (*http.Re
 	url := fmt.Sprintf("https://api.dso.docker.com/datalog/team/%s/queries", workspace)
 	if workspace == "" || apiKey == "" {
 		url = "https://api.dso.docker.com/datalog/shared-vulnerability/queries"
-
 	}
 	query = fmt.Sprintf(`{:queries [{:name "query" :query %s}]}`, query)
 	skill.Log.Debugf("Query %s", query)

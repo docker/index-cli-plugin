@@ -25,7 +25,7 @@ tasks:
 
   go:fmt:
     cmds:
-      - goimports -w .
+      - goimports -w -local github.com/atomist-skills,github.com/docker,github.com/docker/index-cli-plugin .
       - gofmt -w .
       #- go mod tidy
 

@@ -35,7 +35,7 @@ func Cves(cve string, cves *[]types.Cve, sb *types.Sbom, remediate bool, dockerC
 				continue
 			}
 
-			var remediation = make([]string, 0)
+			remediation := make([]string, 0)
 			layerIndex := -1
 			for _, p := range sb.Artifacts {
 				if p.Purl == c.Purl {
