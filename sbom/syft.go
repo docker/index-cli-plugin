@@ -130,7 +130,7 @@ type sourcePackage struct {
 	relationship       string
 }
 
-func toPackage(p pkg2.Package, rels []artifact.Relationship, qualifiers map[string]string, lm *types.LayerMapping, pm packageMapping) []types.Package {
+func toPackage(p pkg2.Package, rels []artifact.Relationship, qualifiers map[string]string, lm *types.LayerMapping, pm packageMapping) []types.Package { //nolint:gocyclo
 	pkg := types.Package{
 		Purl:      getPURL(p),
 		Licenses:  p.Licenses,
