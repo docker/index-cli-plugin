@@ -29,9 +29,15 @@ import (
 
 func TestNodeDetector(t *testing.T) {
 	cmd, _ := command.NewDockerCli()
-	cmd.Initialize(flags.NewClientOptions())
+	err := cmd.Initialize(flags.NewClientOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
 	cache, _ := registry.SaveImage("atomist/skill@sha256:a691a1ccfa81ab7cc6b422a53bfb9bbcea4d78873426b0389eec8f554da9b0b8", cmd)
-	cache.StoreImage()
+	err = cache.StoreImage()
+	if err != nil {
+		t.Fatal(err)
+	}
 	lm := types.LayerMapping{
 		ByDiffId: make(map[string]string),
 	}
@@ -42,9 +48,9 @@ func TestNodeDetector(t *testing.T) {
 	}
 	src, _, err := source.New(i, nil, nil)
 	if err != nil {
-		t.Fail()
+		t.Fatal(err)
 	}
-	packages := nodePackageDetector()([]types.Package{}, *src, lm)
+	packages := nodePackageDetector()([]types.Package{}, src, &lm)
 	if len(packages) != 1 {
 		t.Errorf("Expected package missing")
 	}

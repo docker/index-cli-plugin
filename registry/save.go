@@ -159,7 +159,7 @@ func (c *ImageCache) StoreImage() error {
 			defer func() {
 				err := tempTarFile.Close()
 				if err != nil {
-					skill.Log.Errorf("unable to close temp file (%s): %w", tempTarFile.Name(), err)
+					skill.Log.Errorf("unable to close temp file (%s): %v", tempTarFile.Name(), err)
 				}
 			}()
 
@@ -170,7 +170,7 @@ func (c *ImageCache) StoreImage() error {
 			defer func() {
 				err := readCloser.Close()
 				if err != nil {
-					skill.Log.Errorf("unable to close temp file (%s): %w", tempTarFile.Name(), err)
+					skill.Log.Errorf("unable to close temp file (%s): %v", tempTarFile.Name(), err)
 				}
 			}()
 
