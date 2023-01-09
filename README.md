@@ -39,3 +39,4 @@ $ docker-index cve --image <IMAGE> CVE_ID
 * `--oci-dir <DIR>` can point to a local image in OCI directory format
 * `--remediate` include suggested remediation in the output
 * `CVE_ID` can be any known CVE id
+
