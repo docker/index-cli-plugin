@@ -6,6 +6,7 @@ release:
 
 builds:
   - binary: &binary docker-index
+    main: ./cmd/docker-index
     goos:
       - linux
       - darwin
