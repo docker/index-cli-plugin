@@ -21,10 +21,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/atomist-skills/go-skill"
 	"github.com/briandowns/spinner"
 	"github.com/gookit/color"
 	"github.com/sirupsen/logrus"
+
+	"github.com/atomist-skills/go-skill"
 )
 
 type Fields map[string]interface{}
@@ -63,7 +64,7 @@ func StartInfoSpinner(text string, isTerminal bool) *Spinner {
 func StartSpinner(level string, text string, isTerminal bool) *Spinner {
 	if isTerminal {
 		s := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
-		s.Color("yellow")
+		_ = s.Color("yellow")
 
 		spinner := &Spinner{
 			level:      level,

@@ -24,14 +24,16 @@ import (
 	"strings"
 	"sync"
 
+	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/pkg/errors"
+
 	"github.com/atomist-skills/go-skill"
+
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/index-cli-plugin/internal"
 	"github.com/docker/index-cli-plugin/query"
 	"github.com/docker/index-cli-plugin/registry"
 	"github.com/docker/index-cli-plugin/types"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/pkg/errors"
 )
 
 type ImageIndexResult struct {
@@ -42,10 +44,17 @@ type ImageIndexResult struct {
 
 func indexImageAsync(wg *sync.WaitGroup, image string, cli command.Cli, resultChan chan<- ImageIndexResult) {
 	defer wg.Done()
-	sbom, err := IndexImage(image, cli)
-	cves, err := query.ForVulnerabilitiesInGraphQL(sbom)
+	var (
+		sbom *types.Sbom
+		cves *types.VulnerabilitiesByPurls
+		err  error
+	)
+	sbom, err = IndexImage(image, cli)
 	if err == nil {
-		sbom.Vulnerabilities = cves.VulnerabilitiesByPackage
+		cves, err = query.ForVulnerabilitiesInGraphQL(sbom)
+		if err == nil {
+			sbom.Vulnerabilities = cves.VulnerabilitiesByPackage
+		}
 	}
 	resultChan <- ImageIndexResult{
 		Input: image,
@@ -112,9 +121,12 @@ func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, error
 	}
 
 	trivyResult.Packages, err = types.NormalizePackages(trivyResult.Packages)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to normalize packages: %s", cache.Name)
+	}
 	syftResult.Packages, err = types.NormalizePackages(syftResult.Packages)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to normalize packagess: %s", cache.Name)
+		return nil, errors.Wrapf(err, "failed to normalize packages: %s", cache.Name)
 	}
 
 	packages := types.MergePackages(syftResult, trivyResult)
@@ -169,7 +181,7 @@ func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, error
 		if err != nil {
 			return nil, errors.Wrap(err, "failed create to sbom folder")
 		}
-		err = os.WriteFile(sbomFilePath, js, 0644)
+		err = os.WriteFile(sbomFilePath, js, 0o644)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to write sbom")
 		}

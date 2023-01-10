@@ -26,9 +26,6 @@ import (
 
 	stereoscopeimage "github.com/anchore/stereoscope/pkg/image"
 	"github.com/anchore/syft/syft/source"
-	"github.com/atomist-skills/go-skill"
-	"github.com/docker/cli/cli/command"
-	"github.com/docker/index-cli-plugin/internal"
 	"github.com/dustin/go-humanize"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -40,6 +37,11 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+
+	"github.com/atomist-skills/go-skill"
+
+	"github.com/docker/cli/cli/command"
+	"github.com/docker/index-cli-plugin/internal"
 )
 
 type ImageId struct {
@@ -109,7 +111,7 @@ func (c *ImageCache) StoreImage() error {
 		spinner.Stop()
 	} else if format == "tar" {
 		if c.remote {
-			u := make(chan v1.Update, 0)
+			u := make(chan v1.Update)
 			errchan := make(chan error)
 			go func() {
 				if err := tarball.WriteToFile(c.ImagePath, *c.Ref, *c.Image, tarball.WithProgress(u)); err != nil {
@@ -148,7 +150,6 @@ func (c *ImageCache) StoreImage() error {
 					}
 				}
 			}
-
 		} else {
 			spinner := internal.StartSpinner("info", "Copying image", c.cli.Out().IsTerminal())
 			defer spinner.Stop()

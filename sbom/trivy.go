@@ -34,9 +34,10 @@ import (
 	"github.com/aquasecurity/trivy/pkg/fanal/secret"
 	stypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/fanal/utils"
+	"github.com/pkg/errors"
+
 	"github.com/docker/index-cli-plugin/registry"
 	"github.com/docker/index-cli-plugin/types"
-	"github.com/pkg/errors"
 )
 
 func trivySbom(cache *registry.ImageCache, lm *types.LayerMapping, resultChan chan<- types.IndexResult) {
@@ -56,7 +57,7 @@ func trivySbom(cache *registry.ImageCache, lm *types.LayerMapping, resultChan ch
 		resultChan <- result
 		return
 	}
-	defer cacheClient.Close()
+	defer cacheClient.Close() //nolint:errcheck
 
 	img, err := image.NewArchiveImage(cache.ImagePath)
 	if err != nil {

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/atomist-skills/go-skill"
+
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/docker/api/types"
 )
@@ -18,12 +19,12 @@ func init() {
 }
 
 func WatchImages(cli command.Cli) error {
-	indexJobs := make(chan types.ImageSummary, 0)
+	indexJobs := make(chan types.ImageSummary)
 	for w := 1; w <= maxIndexWorkers; w++ {
 		go indexImageWorker(cli, indexJobs)
 	}
 
-	for range time.Tick(time.Second * 5) {
+	for range time.Tick(time.Second * 5) { //nolint:staticcheck
 		images, err := cli.Client().ImageList(context.Background(), types.ImageListOptions{
 			All: false,
 		})

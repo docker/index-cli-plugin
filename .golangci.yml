@@ -1,0 +1,43 @@
+linters:
+  enable: # defaults @ top
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - typecheck
+    - unused
+    - unconvert
+    - gofmt
+    - misspell
+    - bodyclose
+    - revive
+    - gocyclo
+    - whitespace
+    - sqlclosecheck
+    - goimports
+    - unparam
+run:
+  deadline: 2m
+  allow-parallel-runners: true
+  concurrency: 2
+  tests: true
+linters-settings:
+  gosimple:
+    go: '1.19'
+  staticcheck:
+    go: '1.19'
+  stylecheck:
+    go: '1.19'
+  unused:
+    go: '1.19'
+  revive:
+    rules:
+      - name: exported
+        disabled: true
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-use-default: false
+output:
+  format: tab

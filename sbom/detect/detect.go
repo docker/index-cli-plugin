@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/anchore/syft/syft/source"
+
 	"github.com/docker/index-cli-plugin/types"
 )
 
@@ -110,7 +111,7 @@ var (
 )
 
 func readStrings(reader io.ReadCloser, expr *regexp.Regexp) [][]string {
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 	in := bufio.NewReader(reader)
 	str := make([]rune, 0, max)
 	filePos := int64(0)
@@ -150,5 +151,4 @@ func readStrings(reader io.ReadCloser, expr *regexp.Regexp) [][]string {
 			str = append(str, r)
 		}
 	}
-	return [][]string{}
 }

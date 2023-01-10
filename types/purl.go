@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/anchore/packageurl-go"
+
 	"github.com/atomist-skills/go-skill"
 )
 
@@ -40,10 +41,8 @@ func NormalizePackages(pkgs []Package) ([]Package, error) {
 		}
 		purl.Namespace = toNamespace(purl)
 
-		// some versions strings (e.g. such of Go) have a v prefix that we drop
-		if strings.HasPrefix(purl.Version, "v") {
-			purl.Version = purl.Version[1:]
-		}
+		// some version strings (e.g. such of Go) have a v prefix that we drop
+		purl.Version = strings.TrimPrefix(purl.Version, "v")
 		if purl.Version == "" {
 			purl.Version = "0.0.0"
 		}
@@ -93,9 +92,7 @@ func NormalizePackages(pkgs []Package) ([]Package, error) {
 }
 
 func ToPackageUrl(url string) (packageurl.PackageURL, error) {
-	if strings.HasSuffix(url, "/") {
-		url = url[0 : len(url)-1]
-	}
+	url = strings.TrimSuffix(url, "/")
 	purl, err := packageurl.FromString(url)
 	return purl, err
 }

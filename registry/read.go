@@ -19,9 +19,10 @@ package registry
 import (
 	stereoscopeimage "github.com/anchore/stereoscope/pkg/image"
 	"github.com/anchore/syft/syft/source"
-	"github.com/atomist-skills/go-skill"
 	"github.com/google/go-containerregistry/pkg/v1/layout"
 	"github.com/pkg/errors"
+
+	"github.com/atomist-skills/go-skill"
 )
 
 func ReadImage(name string, path string) (*ImageCache, error) {
@@ -31,6 +32,9 @@ func ReadImage(name string, path string) (*ImageCache, error) {
 		return nil, errors.Wrapf(err, "failed to read manifest index at %s", path)
 	}
 	mani, err := index.IndexManifest()
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to read manifest index at %s", path)
+	}
 	hash := mani.Manifests[0].Digest
 	img, _ := index.Image(hash)
 

@@ -21,10 +21,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/docker/index-cli-plugin/internal"
-	"github.com/docker/index-cli-plugin/types"
 	"github.com/gookit/color"
 	"github.com/xeonx/timeago"
+
+	"github.com/docker/index-cli-plugin/internal"
+	"github.com/docker/index-cli-plugin/types"
 )
 
 type colors struct {
@@ -173,19 +174,19 @@ func Cve(sb *types.Sbom, c *types.Cve) {
 		sourceId = c.Cve.SourceId
 	}
 	fmt.Println("")
-	fmt.Println(defaultColors.underline.Sprintf(fmt.Sprintf("Detected %s %s", sourceId, ColorizeSeverity(ToSeverity(*c)))))
-	fmt.Println(fmt.Sprintf("https://dso.docker.com/cve/%s", sourceId))
+	defaultColors.underline.Printf("Detected %s %s\n", sourceId, ColorizeSeverity(ToSeverity(*c)))
+	fmt.Printf("https://dso.docker.com/cve/%s\n", sourceId)
 	fmt.Println("")
 	purl := c.Purl
 	for _, p := range sb.Artifacts {
 		if p.Purl == purl {
-			fmt.Println(defaultColors.cyan.Sprintf(p.Purl))
+			defaultColors.cyan.Println(p.Purl)
 			loc := p.Locations[0]
 			for i, l := range sb.Source.Image.Config.RootFS.DiffIDs {
 				if l.String() == loc.DiffId {
 					h := sb.Source.Image.Config.History[i]
 					fmt.Println(formatCreatedBy(h.CreatedBy))
-					fmt.Println(fmt.Sprintf("%d: %s", i, loc.Digest))
+					fmt.Printf("%d: %s\n", i, loc.Digest)
 				}
 			}
 		}
@@ -195,9 +196,9 @@ func Cve(sb *types.Sbom, c *types.Cve) {
 func Remediation(remediation []string) {
 	if len(remediation) > 0 {
 		fmt.Println("")
-		fmt.Println(defaultColors.underline.Sprintf("Suggested remediation"))
+		defaultColors.underline.Println("Suggested remediation")
 		for i, r := range remediation {
-			fmt.Println(fmt.Sprintf("\n%d. %s", i+1, r))
+			fmt.Printf("\n%d. %s\n", i+1, r)
 		}
 	}
 }

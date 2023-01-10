@@ -26,14 +26,16 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/atomist-skills/go-skill"
-	"github.com/docker/index-cli-plugin/types"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/hasura/go-graphql-client"
 	"github.com/opencontainers/go-digest"
 	"github.com/opencontainers/image-spec/identity"
 	"github.com/pkg/errors"
 	"olympos.io/encoding/edn"
+
+	"github.com/atomist-skills/go-skill"
+
+	"github.com/docker/index-cli-plugin/types"
 )
 
 type ImageQueryResult struct {
@@ -99,6 +101,7 @@ func ForBaseImageInIndex(digest digest.Digest, workspace string, apiKey string) 
 
 	if resp.StatusCode == 200 {
 		var manifestList []types.IndexManifestList
+		defer resp.Body.Close() //nolint:errcheck
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to read response body")
@@ -116,7 +119,7 @@ func ForBaseImageInIndex(digest digest.Digest, workspace string, apiKey string) 
 		}
 		repository, err := ForRepositoryInDb(manifestList[0].Name, workspace, apiKey)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to query for respository")
+			return nil, errors.Wrapf(err, "failed to query for repository")
 		}
 		image := types.Image{
 			Digest:     ii.Digest,
@@ -136,8 +139,12 @@ func ForBaseImageInIndex(digest digest.Digest, workspace string, apiKey string) 
 func ForBaseImageWithoutCve(cve string, name string, sb *types.Sbom, workspace string, apiKey string) (*[]types.Image, error) {
 	cf := (*sb).Source.Image.Config
 	resp, err := query(fmt.Sprintf(baseImageCveQuery, cve, name, cf.OS, cf.Architecture, cf.Variant), "base_image_cve_query", workspace, apiKey)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to query for base image without CVE")
+	}
 
 	var result ImageQueryResult
+	defer resp.Body.Close() //nolint:errcheck
 	err = edn.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to unmarshal response")
@@ -174,8 +181,12 @@ func ForBaseImageWithoutCve(cve string, name string, sb *types.Sbom, workspace s
 // ForBaseImageInDb returns images with matching digest in :docker.image/blob-digest or :docker.image/diff-chain-id
 func ForBaseImageInDb(digest digest.Digest, workspace string, apiKey string) (*[]types.Image, error) {
 	resp, err := query(fmt.Sprintf(baseImageQuery, digest), "base_image_query", workspace, apiKey)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to query for base image in DB")
+	}
 
 	var result ImageQueryResult
+	defer resp.Body.Close() //nolint:errcheck
 	err = edn.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to unmarshal response")
@@ -204,8 +215,12 @@ func ForBaseImageInDb(digest digest.Digest, workspace string, apiKey string) (*[
 
 func ForRepositoryInDb(repo string, workspace string, apiKey string) (*types.Repository, error) {
 	resp, err := query(fmt.Sprintf(repositoryQuery, repo), "repository_query", workspace, apiKey)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to query for repository in DB")
+	}
 
 	var result RepositoryQueryResult
+	defer resp.Body.Close() //nolint:errcheck
 	err = edn.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to unmarshal response")
@@ -236,12 +251,11 @@ func ForBaseImageInGraphQL(cfg *v1.ConfigFile) (*types.BaseImagesByDiffIdsQuery,
 	var q types.BaseImagesByDiffIdsQuery
 	err := client.Query(context.Background(), &q, variables)
 	if err != nil {
-		fmt.Sprintf("error %v", err)
 		return nil, errors.Wrapf(err, "failed to run query")
 	}
 	count := 0
-	for ii, _ := range q.ImagesByDiffIds {
-		for bi, _ := range q.ImagesByDiffIds[ii].Images {
+	for ii := range q.ImagesByDiffIds {
+		for bi := range q.ImagesByDiffIds[ii].Images {
 			count++
 			q.ImagesByDiffIds[ii].Images[bi].Repository = normalizeRepository(&q.ImagesByDiffIds[ii].Images[bi]).Repository
 		}
@@ -271,7 +285,6 @@ func ForImageInGraphQL(sb *types.Sbom) (*types.ImageByDigestQuery, error) {
 	var q types.ImageByDigestQuery
 	err := client.Query(context.Background(), &q, variables)
 	if err != nil {
-		fmt.Sprintf("error %v", err)
 		return nil, errors.Wrapf(err, "failed to run query")
 	}
 	if q.ImageDetailsByDigest.Digest != "" {
@@ -282,7 +295,7 @@ func ForImageInGraphQL(sb *types.Sbom) (*types.ImageByDigestQuery, error) {
 }
 
 func normalizeRepository(image *types.BaseImage) *types.BaseImage {
-	if image.Repository.Host == "hub.docker.com" && strings.Index(image.Repository.Repo, "/") < 0 {
+	if image.Repository.Host == "hub.docker.com" && strings.Contains(image.Repository.Repo, "/") {
 		image.Repository.Badge = "OFFICIAL"
 	}
 	if image.Repository.Badge != "" {

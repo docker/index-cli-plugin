@@ -21,6 +21,7 @@ import (
 
 	stereoscopeimage "github.com/anchore/stereoscope/pkg/image"
 	"github.com/anchore/syft/syft/source"
+
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/cli/cli/flags"
 	"github.com/docker/index-cli-plugin/registry"

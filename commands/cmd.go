@@ -24,7 +24,13 @@ import (
 	"os"
 	"strings"
 
+	"github.com/moby/term"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+
 	"github.com/atomist-skills/go-skill"
+
 	"github.com/docker/cli/cli"
 	"github.com/docker/cli/cli-plugins/plugin"
 	"github.com/docker/cli/cli/command"
@@ -32,10 +38,6 @@ import (
 	"github.com/docker/index-cli-plugin/query"
 	"github.com/docker/index-cli-plugin/sbom"
 	"github.com/docker/index-cli-plugin/types"
-	"github.com/moby/term"
-	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
 )
 
 func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Command {
@@ -129,7 +131,7 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 				return err
 			}
 			if output != "" {
-				_ = os.WriteFile(output, js, 0644)
+				_ = os.WriteFile(output, js, 0o644)
 				skill.Log.Infof("SBOM written to %s", output)
 			} else {
 				fmt.Println(string(js))
@@ -177,9 +179,7 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 			if err != nil {
 				return err
 			}
-			err = sbom.UploadSbom(sb, workspace, apiKey)
-
-			return nil
+			return sbom.UploadSbom(sb, workspace, apiKey)
 		},
 	}
 	uploadCommandFlags := uploadCommand.Flags()
@@ -254,7 +254,7 @@ func readWorkspace(args []string, cli command.Cli) (string, error) {
 	} else if v, ok := os.LookupEnv("ATOMIST_WORKSPACE"); v != "" && ok {
 		workspace = v
 	} else {
-		fmt.Fprintf(cli.Out(), "Workspace: ")
+		_, _ = fmt.Fprintf(cli.Out(), "Workspace: ")
 
 		workspace = readInput(cli.In(), cli.Out())
 		if workspace == "" {
@@ -282,12 +282,12 @@ func readApiKey(apiKeyStdin bool, cli command.Cli) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		fmt.Fprintf(cli.Out(), "API key: ")
-		term.DisableEcho(cli.In().FD(), oldState)
+		_, _ = fmt.Fprintf(cli.Out(), "API key: ")
+		_ = term.DisableEcho(cli.In().FD(), oldState)
 
 		apiKey = readInput(cli.In(), cli.Out())
-		fmt.Fprint(cli.Out(), "\n")
-		term.RestoreTerminal(cli.In().FD(), oldState)
+		_, _ = fmt.Fprint(cli.Out(), "\n")
+		_ = term.RestoreTerminal(cli.In().FD(), oldState)
 		if apiKey == "" {
 			return "", errors.Errorf("Error: API key required")
 		}
@@ -299,7 +299,7 @@ func readInput(in io.Reader, out io.Writer) string {
 	reader := bufio.NewReader(in)
 	line, _, err := reader.ReadLine()
 	if err != nil {
-		fmt.Fprintln(out, err.Error())
+		_, _ = fmt.Fprintln(out, err.Error())
 		os.Exit(1)
 	}
 	return string(line)

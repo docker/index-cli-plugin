@@ -23,13 +23,15 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/docker/index-cli-plugin/internal"
-	"github.com/docker/index-cli-plugin/types"
 	"github.com/hasura/go-graphql-client"
 
-	"github.com/atomist-skills/go-skill"
+	"github.com/docker/index-cli-plugin/internal"
+	"github.com/docker/index-cli-plugin/types"
+
 	"github.com/pkg/errors"
 	"olympos.io/encoding/edn"
+
+	"github.com/atomist-skills/go-skill"
 )
 
 type CveResult struct {
@@ -56,6 +58,7 @@ func CheckAuth(workspace string, apiKey string) (bool, error) {
 	if err != nil {
 		return false, errors.Wrap(err, "failed to check auth")
 	}
+	defer resp.Body.Close() //nolint:errcheck
 	if resp.StatusCode != 200 || err != nil {
 		return false, nil
 	}
@@ -81,6 +84,7 @@ func QueryCves(sb *types.Sbom, cve string, workspace string, apiKey string) (*[]
 		return nil, errors.Wrapf(err, "failed to run query")
 	}
 	var result QueryResult
+	defer resp.Body.Close() //nolint:errcheck
 	err = edn.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to unmarshal response")
@@ -99,7 +103,6 @@ func QueryCves(sb *types.Sbom, cve string, workspace string, apiKey string) (*[]
 			}
 		})
 		return &fcves, nil
-
 	} else {
 		return nil, nil
 	}
@@ -109,7 +112,6 @@ func query(query string, name string, workspace string, apiKey string) (*http.Re
 	url := fmt.Sprintf("https://api.dso.docker.com/datalog/team/%s/queries", workspace)
 	if workspace == "" || apiKey == "" {
 		url = "https://api.dso.docker.com/datalog/shared-vulnerability/queries"
-
 	}
 	query = fmt.Sprintf(`{:queries [{:name "query" :query %s}]}`, query)
 	skill.Log.Debugf("Query %s", query)
@@ -151,7 +153,6 @@ func ForVulnerabilitiesInGraphQL(sb *types.Sbom) (*types.VulnerabilitiesByPurls,
 	var q types.VulnerabilitiesByPurls
 	err := client.Query(context.Background(), &q, variables)
 	if err != nil {
-		fmt.Sprintf("error %v", err)
 		return nil, errors.Wrapf(err, "failed to run query")
 	}
 	if len(q.VulnerabilitiesByPackage) > 0 {

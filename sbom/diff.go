@@ -21,41 +21,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/anchore/packageurl-go"
-	"github.com/docker/cli/cli/command"
-	"github.com/docker/index-cli-plugin/types"
-	"github.com/gookit/color"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
+
+	"github.com/docker/cli/cli/command"
+	"github.com/docker/index-cli-plugin/types"
 )
-
-type colors struct {
-	critical    color.RGBColor
-	high        color.RGBColor
-	medium      color.RGBColor
-	low         color.RGBColor
-	unspecified color.RGBColor
-
-	removed color.Color
-	added   color.Color
-	changed color.Color
-}
-
-var defaultColors *colors
-
-func init() {
-	defaultColors = &colors{
-		critical:    color.HEX("D52536"),
-		high:        color.HEX("DD7805"),
-		medium:      color.HEX("FBB552"),
-		low:         color.HEX("FCE1A9"),
-		unspecified: color.HEX("E9ECEF"),
-
-		removed: color.Green,
-		added:   color.Red,
-		changed: color.Yellow,
-	}
-}
 
 func DiffImages(image1 string, image2 string, cli command.Cli, workspace string, apikey string) error {
 	resultChan := make(chan ImageIndexResult, 2)
@@ -77,7 +48,7 @@ func DiffImages(image1 string, image2 string, cli command.Cli, workspace string,
 	}
 
 	diffPackages(result1, result2)
-	//diffCves(result1, result2)
+	// diffCves(result1, result2)
 	return nil
 }
 
@@ -89,22 +60,10 @@ func toPackageKey(pkg types.Package) string {
 	}
 }
 
-func toPackageName(pkg packageurl.PackageURL) string {
-	if pkg.Namespace != "" {
-		return fmt.Sprintf("%s/%s/%s", pkg.Type, pkg.Namespace, pkg.Name)
-	} else {
-		return fmt.Sprintf("%s/%s", pkg.Type, pkg.Name)
-	}
-}
-
 func toImageName(result ImageIndexResult) string {
 	imageName := result.Sbom.Source.Image.Name
-	if strings.HasPrefix(imageName, "index.docker.io/") {
-		imageName = imageName[len("index.docker.io/"):]
-	}
-	if strings.HasPrefix(imageName, "library/") {
-		imageName = imageName[len("library/"):]
-	}
+	imageName = strings.TrimPrefix(imageName, "index.docker.io/")
+	imageName = strings.TrimPrefix(imageName, "library/")
 	return imageName
 }
 
@@ -226,14 +185,14 @@ func diffPackages(result1, result2 ImageIndexResult) {
 	}
 }
 
-type CveEntry struct {
+/*type CveEntry struct {
 	image1 []types.Cve
 	image2 []types.Cve
 }
 
 type CveMap map[string]CveEntry
 
-/*func diffCves(result1, result2 ImageIndexResult) {
+func diffCves(result1, result2 ImageIndexResult) {
 	dc := 0
 	cves := make(CveMap)
 	for _, c := range result1.Sbom.Vulnerabilities {

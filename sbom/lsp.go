@@ -22,11 +22,12 @@ import (
 	"io"
 
 	"github.com/anchore/syft/syft/source"
+	"github.com/pkg/errors"
+
 	"github.com/docker/cli/cli/command"
 	cliflags "github.com/docker/cli/cli/flags"
 	"github.com/docker/index-cli-plugin/registry"
 	"github.com/docker/index-cli-plugin/sbom/util"
-	"github.com/pkg/errors"
 )
 
 func Send(image string, tx chan<- string) error {
@@ -72,7 +73,7 @@ func SendFileHashes(image string, tx chan<- string) error {
 			content, err := res.FileContentsByLocation(source.NewLocation(string(ref.RealPath)))
 			if err == nil {
 				b, _ := io.ReadAll(content)
-				content.Close()
+				content.Close() //nolint:errcheck
 				h := sha256.New()
 				h.Write(b)
 				hash := fmt.Sprintf("sha256:%x", h.Sum(nil))

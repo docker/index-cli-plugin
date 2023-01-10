@@ -31,11 +31,12 @@ import (
 	"github.com/anchore/syft/syft/pkg/cataloger/deb"
 	"github.com/anchore/syft/syft/pkg/cataloger/rpm"
 	"github.com/anchore/syft/syft/source"
+	"github.com/pkg/errors"
+
 	"github.com/docker/index-cli-plugin/registry"
 	"github.com/docker/index-cli-plugin/sbom/detect"
 	"github.com/docker/index-cli-plugin/sbom/util"
 	"github.com/docker/index-cli-plugin/types"
-	"github.com/pkg/errors"
 )
 
 type packageMapping map[string]*stereoscopeimage.Layer
@@ -55,7 +56,6 @@ func syftSbom(cache *registry.ImageCache, lm *types.LayerMapping, resultChan cha
 		result.Error = errors.Wrap(err, "failed to index image")
 		resultChan <- result
 		return
-
 	}
 
 	d, qualifiers := osQualifiers(distro)
@@ -72,7 +72,6 @@ func syftSbom(cache *registry.ImageCache, lm *types.LayerMapping, resultChan cha
 				result.Error = errors.Wrap(err, "failed to catalog apk packages")
 				resultChan <- result
 				return
-
 			}
 		}
 		layerPkgs = append(layerPkgs, apkPkgs...)
@@ -83,7 +82,6 @@ func syftSbom(cache *registry.ImageCache, lm *types.LayerMapping, resultChan cha
 				result.Error = errors.Wrap(err, "failed to catalog dep packages")
 				resultChan <- result
 				return
-
 			}
 		}
 		layerPkgs = append(layerPkgs, debPkgs...)
@@ -132,7 +130,7 @@ type sourcePackage struct {
 	relationship       string
 }
 
-func toPackage(p pkg2.Package, rels []artifact.Relationship, qualifiers map[string]string, lm *types.LayerMapping, pm packageMapping) []types.Package {
+func toPackage(p pkg2.Package, rels []artifact.Relationship, qualifiers map[string]string, lm *types.LayerMapping, pm packageMapping) []types.Package { //nolint:gocyclo
 	pkg := types.Package{
 		Purl:      getPURL(p),
 		Licenses:  p.Licenses,
