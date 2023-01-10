@@ -22,7 +22,6 @@ builds:
       -s
       -extldflags '-static'
       -X github.com/docker/index-cli-plugin/internal.version={{.Version}}
-      -X github.com/docker/index-cli-plugin/internal.commit={{.Commit}}
 
 archives:
   - format: tar.gz

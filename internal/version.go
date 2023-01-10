@@ -22,6 +22,7 @@ package internal
 import (
 	"fmt"
 	"runtime"
+	"runtime/debug"
 )
 
 // build-time arguments
@@ -29,6 +30,16 @@ var (
 	version = "n/a"
 	commit  = "n/a"
 )
+
+func init() {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range info.Settings {
+			if setting.Key == "vcs.revision" {
+				commit = setting.Value
+			}
+		}
+	}
+}
 
 // Version information from build time args and environment
 type Version struct {
