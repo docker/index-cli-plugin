@@ -24,6 +24,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/docker/index-cli-plugin/internal"
+
 	"github.com/moby/term"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -243,7 +245,18 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 		},
 	}
 
-	cmd.AddCommand(loginCommand, logoutCommand, sbomCommand, cveCommand, uploadCommand, diffCommand, watchCommand)
+	versionCommand := &cobra.Command{
+		Use:   "version",
+		Short: "Print version",
+		Args:  cobra.NoArgs,
+		Run: func(_ *cobra.Command, _ []string) {
+			v := internal.FromBuild()
+			fmt.Printf("version: %s (%s - %s)\n", v.Version, v.GoVersion, v.Platform)
+			fmt.Println("git commit:", v.Commit)
+		},
+	}
+
+	cmd.AddCommand(loginCommand, logoutCommand, sbomCommand, cveCommand, uploadCommand, diffCommand, watchCommand, versionCommand)
 	return cmd
 }
 
