@@ -55,6 +55,12 @@ func NormalizePackages(pkgs []Package) ([]Package, error) {
 			if d := q["os_distro"]; d != "" {
 				qualifiers["os_distro"] = d
 			}
+			if d := q["distro_name"]; d != "" {
+				qualifiers["distro_name"] = d
+			}
+			if d := q["distro_version"]; d != "" {
+				qualifiers["distro_version"] = d
+			}
 			purl.Qualifiers = packageurl.QualifiersFromMap(qualifiers)
 		}
 

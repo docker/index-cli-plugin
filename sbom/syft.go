@@ -377,11 +377,20 @@ func osQualifiers(release *linux.Release) (types.Distro, map[string]string) {
 		distro.OsDistro = release.VersionCodename
 	}
 
-	qualifiers["os_name"] = distro.OsName
-	qualifiers["os_version"] = distro.OsVersion
-	if distro.OsDistro != "" {
-		qualifiers["os_distro"] = distro.OsDistro
+	// special handling for wolfi images
+	if distro.OsName == "wolfi" {
+		qualifiers["os_name"] = "alpine"
+		qualifiers["os_version"] = "edge"
+		qualifiers["distro_name"] = distro.OsName
+		qualifiers["distro_version"] = distro.OsVersion
+	} else {
+		qualifiers["os_name"] = distro.OsName
+		qualifiers["os_version"] = distro.OsVersion
+		if distro.OsDistro != "" {
+			qualifiers["os_distro"] = distro.OsDistro
+		}
 	}
+
 	return distro, qualifiers
 }
 
