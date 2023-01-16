@@ -137,6 +137,10 @@ func toPackage(p pkg2.Package, rels []artifact.Relationship, qualifiers map[stri
 		Locations: make([]types.Location, 0),
 	}
 
+	if p.Type == "" {
+		return []types.Package{}
+	}
+
 	var sourceNameAndVersion sourcePackage
 	var virtualPath string
 
