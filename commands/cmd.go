@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/docker/index-cli-plugin/internal"
+	"github.com/docker/index-cli-plugin/sbom"
 
 	"github.com/moby/term"
 	"github.com/pkg/errors"
@@ -38,7 +39,6 @@ import (
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/index-cli-plugin/format"
 	"github.com/docker/index-cli-plugin/query"
-	"github.com/docker/index-cli-plugin/sbom"
 	"github.com/docker/index-cli-plugin/types"
 )
 
@@ -73,8 +73,8 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 	config := dockerCli.ConfigFile()
 
 	var (
-		output, ociDir, image, workspace                       string
-		apiKeyStdin, includeCves, includeBaseImages, remediate bool
+		output, ociDir, image, workspace                                    string
+		apiKeyStdin, includeCves, includeBaseImages, remediate, includeSbom bool
 	)
 
 	logoutCommand := &cobra.Command{
@@ -181,14 +181,18 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 			if err != nil {
 				return err
 			}
+			if !includeSbom {
+				sb.Artifacts = nil
+			}
 			return sbom.UploadSbom(sb, workspace, apiKey)
 		},
 	}
 	uploadCommandFlags := uploadCommand.Flags()
-	uploadCommandFlags.StringVar(&image, "image", "", "Image reference to index")
-	uploadCommandFlags.StringVar(&ociDir, "oci-dir", "", "Path to image in OCI format")
-	uploadCommandFlags.StringVar(&workspace, "workspace", "", "Atomist workspace")
+	uploadCommandFlags.StringVarP(&image, "image", "i", "", "Image reference to index")
+	uploadCommandFlags.StringVarP(&ociDir, "oci-dir", "d", "", "Path to image in OCI format")
+	uploadCommandFlags.StringVarP(&workspace, "workspace", "w", "", "Atomist workspace")
 	uploadCommandFlags.BoolVar(&apiKeyStdin, "api-key-stdin", false, "Atomist API key")
+	uploadCommandFlags.BoolVarP(&includeSbom, "sbom", "s", false, "Add SBOM")
 
 	cveCommand := &cobra.Command{
 		Use:   "cve [OPTIONS] CVE_ID",

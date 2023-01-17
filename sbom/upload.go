@@ -145,14 +145,16 @@ func transactSbom(sb *types.Sbom, newTransaction func() skill.Transaction) (*Ima
 		Layers:               &layers,
 		BlobDigest:           digests[len(digests)-1].String(),
 		DiffChainId:          diffIds[len(diffIds)-1].String(),
-
-		SbomVersion:      sb.Descriptor.SbomVersion,
-		SbomState:        Indexing,
-		SbomLastUpdated:  &now,
-		SbomPackageCount: len(sb.Artifacts),
 	}
 	if sha != "" {
 		image.Sha = sha
+	}
+
+	if sb.Artifacts != nil {
+		image.SbomVersion = sb.Descriptor.SbomVersion
+		image.SbomState = Indexing
+		image.SbomLastUpdated = &now
+		image.SbomPackageCount = len(sb.Artifacts)
 	}
 
 	if sb.Source.Image.Tags != nil && len(*sb.Source.Image.Tags) > 0 {
@@ -189,8 +191,7 @@ func transactSbom(sb *types.Sbom, newTransaction func() skill.Transaction) (*Ima
 		transaction := newTransaction().Ordered()
 
 		image = ImageEntity{
-			Digest:    sb.Source.Image.Digest,
-			SbomState: Indexing,
+			Digest: sb.Source.Image.Digest,
 		}
 
 		for _, p := range packages {
@@ -235,8 +236,13 @@ func transactSbom(sb *types.Sbom, newTransaction func() skill.Transaction) (*Ima
 	}
 
 	image = ImageEntity{
-		Digest:    sb.Source.Image.Digest,
-		SbomState: Indexed,
+		Digest:       sb.Source.Image.Digest,
+		Repository:   &repository,
+		Repositories: &[]RepositoryEntity{repository},
+		SbomState:    Indexed,
+	}
+	if sb.Artifacts != nil {
+		image.SbomState = Indexed
 	}
 	err = newTransaction().Ordered().AddEntities(image).Transact()
 	if err != nil {
@@ -401,7 +407,7 @@ type ImageEntity struct {
 	DiffChainId          string                       `edn:"docker.image/diff-chain-id,omitempty"`
 	Sha                  string                       `edn:"docker.image/sha,omitempty"`
 
-	SbomState        edn.Keyword `edn:"sbom/state"`
+	SbomState        edn.Keyword `edn:"sbom/state,omitempty"`
 	SbomVersion      string      `edn:"sbom/version,omitempty"`
 	SbomLastUpdated  *time.Time  `edn:"sbom/last-updated,omitempty"`
 	SbomPackageCount int         `edn:"sbom/package-count,omitempty"`
