@@ -297,7 +297,7 @@ func toPackage(p pkg2.Package, rels []artifact.Relationship, qualifiers map[stri
 	pkg.Purl = purl.String()
 
 	// add package for source packages
-	if sourceNameAndVersion.name != "" {
+	if sourceNameAndVersion.name != "" && sourceNameAndVersion.name != p.Name {
 		if sourceNameAndVersion.overwriteNamespace {
 			purl.Namespace = ""
 		}
