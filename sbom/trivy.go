@@ -35,8 +35,9 @@ import (
 	"github.com/aquasecurity/trivy/pkg/fanal/image"
 	stypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/fanal/utils"
-	"github.com/atomist-skills/go-skill"
 	"github.com/pkg/errors"
+
+	"github.com/atomist-skills/go-skill"
 
 	"github.com/docker/index-cli-plugin/registry"
 	"github.com/docker/index-cli-plugin/types"
@@ -67,7 +68,7 @@ func trivySbom(cache *registry.ImageCache, lm *types.LayerMapping, resultChan ch
 		resultChan <- result
 		return
 	}
-	
+
 	art, err := aimage.NewArtifact(img, cacheClient, configOptions())
 	if err != nil {
 		result.Status = types.Failed
@@ -226,7 +227,7 @@ func configOptions() artifact.Option {
 		DisabledAnalyzers: []analyzer.Type{analyzer.TypeDockerfile, analyzer.TypeSecret, analyzer.TypeHelm, analyzer.TypeTerraform, analyzer.TypeJSON, analyzer.TypeYaml},
 	}
 	if v, ok := os.LookupEnv("ATOMIST_OFFLINE"); ok {
-		if o, err := strconv.ParseBool(v); err == nil && o{
+		if o, err := strconv.ParseBool(v); err == nil && o {
 			opts.Offline = true
 		}
 	}

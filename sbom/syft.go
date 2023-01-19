@@ -31,8 +31,9 @@ import (
 	"github.com/anchore/syft/syft/pkg/cataloger/deb"
 	"github.com/anchore/syft/syft/pkg/cataloger/rpm"
 	"github.com/anchore/syft/syft/source"
-	"github.com/atomist-skills/go-skill"
 	"github.com/pkg/errors"
+
+	"github.com/atomist-skills/go-skill"
 
 	"github.com/docker/index-cli-plugin/registry"
 	"github.com/docker/index-cli-plugin/sbom/detect"
@@ -57,7 +58,7 @@ func syftSbom(cache *registry.ImageCache, lm *types.LayerMapping, resultChan cha
 		resultChan <- result
 		return
 	}
-	
+
 	d, qualifiers := osQualifiers(distro)
 	result.Distro = d
 
@@ -111,7 +112,7 @@ func syftSbom(cache *registry.ImageCache, lm *types.LayerMapping, resultChan cha
 			}
 		}
 	}
-	
+
 	result.Packages = make([]types.Package, 0)
 	packages := packageCatalog.Sorted()
 	for _, p := range packages {
