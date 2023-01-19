@@ -31,6 +31,7 @@ import (
 	"github.com/anchore/syft/syft/pkg/cataloger/deb"
 	"github.com/anchore/syft/syft/pkg/cataloger/rpm"
 	"github.com/anchore/syft/syft/source"
+	"github.com/atomist-skills/go-skill"
 	"github.com/pkg/errors"
 
 	"github.com/docker/index-cli-plugin/registry"
@@ -49,7 +50,6 @@ func syftSbom(cache *registry.ImageCache, lm *types.LayerMapping, resultChan cha
 	}
 
 	defer close(resultChan)
-
 	packageCatalog, packageRelationships, distro, err := syft.CatalogPackages(cache.Source, cataloger.DefaultConfig())
 	if err != nil {
 		result.Status = types.Failed
@@ -57,7 +57,7 @@ func syftSbom(cache *registry.ImageCache, lm *types.LayerMapping, resultChan cha
 		resultChan <- result
 		return
 	}
-
+	
 	d, qualifiers := osQualifiers(distro)
 	result.Distro = d
 
@@ -111,15 +111,15 @@ func syftSbom(cache *registry.ImageCache, lm *types.LayerMapping, resultChan cha
 			}
 		}
 	}
-
+	
 	result.Packages = make([]types.Package, 0)
 	packages := packageCatalog.Sorted()
 	for _, p := range packages {
 		pkg := toPackage(p, packageRelationships, qualifiers, lm, pm)
 		result.Packages = append(result.Packages, pkg...)
 	}
-
 	result.Packages = append(result.Packages, detect.AdditionalPackages(result.Packages, cache.Source, lm)...)
+	skill.Log.Debug("syft indexing completed")
 	resultChan <- result
 }
 

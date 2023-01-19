@@ -19,6 +19,8 @@ package sbom
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 
 	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
@@ -31,9 +33,9 @@ import (
 	aimage "github.com/aquasecurity/trivy/pkg/fanal/artifact/image"
 	"github.com/aquasecurity/trivy/pkg/fanal/cache"
 	"github.com/aquasecurity/trivy/pkg/fanal/image"
-	"github.com/aquasecurity/trivy/pkg/fanal/secret"
 	stypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/fanal/utils"
+	"github.com/atomist-skills/go-skill"
 	"github.com/pkg/errors"
 
 	"github.com/docker/index-cli-plugin/registry"
@@ -47,7 +49,6 @@ func trivySbom(cache *registry.ImageCache, lm *types.LayerMapping, resultChan ch
 		Packages: make([]types.Package, 0),
 		Secrets:  make([]types.Secret, 0),
 	}
-
 	defer close(resultChan)
 
 	cacheClient, err := initializeCache()
@@ -66,8 +67,8 @@ func trivySbom(cache *registry.ImageCache, lm *types.LayerMapping, resultChan ch
 		resultChan <- result
 		return
 	}
-
-	art, err := aimage.NewArtifact(img, cacheClient, artifact.Option{})
+	
+	art, err := aimage.NewArtifact(img, cacheClient, configOptions())
 	if err != nil {
 		result.Status = types.Failed
 		result.Error = errors.Wrap(err, "failed to create new artifact")
@@ -84,14 +85,15 @@ func trivySbom(cache *registry.ImageCache, lm *types.LayerMapping, resultChan ch
 	}
 
 	a := applier.NewApplier(cacheClient)
-	scanner, err := secret.NewScanner("")
+	/*scanner, err := secret.NewScanner("")
 	if err != nil {
 		result.Status = types.Failed
 		result.Error = errors.Wrap(err, "failed to create secret scanner")
 		resultChan <- result
 		return
-	}
-	config := &cache.Source.Image.Metadata.Config
+	}*/
+
+	/*config := &cache.Source.Image.Metadata.Config
 	for o, h := range config.History {
 		secrets := scanner.Scan(secret.ScanArgs{
 			FilePath: "history",
@@ -129,7 +131,7 @@ func trivySbom(cache *registry.ImageCache, lm *types.LayerMapping, resultChan ch
 				Type: "env",
 			}))
 		}
-	}
+	}*/
 	for v := range imageInfo.BlobIDs {
 		mergedLayer, err := a.ApplyLayers(imageInfo.ID, []string{imageInfo.BlobIDs[v]})
 		if err != nil {
@@ -211,15 +213,24 @@ func trivySbom(cache *registry.ImageCache, lm *types.LayerMapping, resultChan ch
 			}
 		}
 	}
-
+	skill.Log.Debug("trivy indexing completed")
 	resultChan <- result
 }
 
 func initializeCache() (cache.Cache, error) {
-	var cacheClient cache.Cache
-	var err error
-	cacheClient, err = cache.NewFSCache(utils.CacheDir())
-	return cacheClient, err
+	return cache.NewFSCache(utils.CacheDir())
+}
+
+func configOptions() artifact.Option {
+	opts := artifact.Option{
+		DisabledAnalyzers: []analyzer.Type{analyzer.TypeDockerfile, analyzer.TypeSecret, analyzer.TypeHelm, analyzer.TypeTerraform, analyzer.TypeJSON, analyzer.TypeYaml},
+	}
+	if v, ok := os.LookupEnv("ATOMIST_OFFLINE"); ok {
+		if o, err := strconv.ParseBool(v); err == nil && o{
+			opts.Offline = true
+		}
+	}
+	return opts
 }
 
 func convertSecretFindings(s stypes.Secret, source types.SecretSource) types.Secret {
