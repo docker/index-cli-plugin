@@ -186,27 +186,28 @@ func transactSbom(sb *types.Sbom, newTransaction func() skill.Transaction) (*Ima
 	}
 
 	// transact all packages in chunks
-	packageChunks := internal.ChunkSlice(sb.Artifacts, 20)
+	packageChunks := internal.ChunkSlice(sb.Artifacts, 200000)
 	for _, packages := range packageChunks {
 		transaction := newTransaction().Ordered()
 
+		pkgs := make([]PackageEntity, 0)
 		image = ImageEntity{
 			Digest: sb.Source.Image.Digest,
 		}
 
 		for _, p := range packages {
-			files := make([]FileEntity, 0)
+			/*files := make([]FileEntity, 0)
 			for _, f := range p.Locations {
 				files = append(files, FileEntity{
 					Id:     internal.Hash(fmt.Sprintf("%s %s %s", p.Purl, f.Path, f.Digest)),
 					Path:   f.Path,
 					Digest: f.Digest,
 				})
-			}
+			}*/
 
 			pkg := PackageEntity{
-				Purl:        p.Purl,
-				Type:        p.Type,
+				Purl: p.Purl,
+				/*Type:        p.Type,
 				Namespace:   p.Namespace,
 				Name:        p.Name,
 				Version:     p.Version,
@@ -214,21 +215,22 @@ func transactSbom(sb *types.Sbom, newTransaction func() skill.Transaction) (*Ima
 				Licenses:    p.Licenses,
 				Description: p.Description,
 				Url:         p.Url,
-				Size:        p.Size,
+				Size:        p.Size,*/
 				AdvisoryUrl: types.ToAdvisoryUrl(p),
 			}
 
-			dep := DependencyEntity{
+			pkgs = append(pkgs, pkg)
+
+			/*dep := DependencyEntity{
 				Scopes:  []string{"provided"},
 				Parent:  image,
 				Package: pkg,
 				Files:   files,
-			}
-
-			transaction.AddEntities(dep)
+			}*/
 		}
 
-		image.Dependencies = &skill.ManyRef{Add: transaction.EntityRefs("package/dependency")}
+		image.SbomPackages = &pkgs
+		//image.Dependencies = &skill.ManyRef{Add: transaction.EntityRefs("package/dependency")}
 		err := transaction.AddEntities(image).Transact()
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to transact packages")
@@ -407,12 +409,13 @@ type ImageEntity struct {
 	DiffChainId          string                       `edn:"docker.image/diff-chain-id,omitempty"`
 	Sha                  string                       `edn:"docker.image/sha,omitempty"`
 
-	SbomState        edn.Keyword `edn:"sbom/state,omitempty"`
-	SbomVersion      string      `edn:"sbom/version,omitempty"`
-	SbomLastUpdated  *time.Time  `edn:"sbom/last-updated,omitempty"`
-	SbomPackageCount int         `edn:"sbom/package-count,omitempty"`
+	SbomState        edn.Keyword      `edn:"sbom/state,omitempty"`
+	SbomVersion      string           `edn:"sbom/version,omitempty"`
+	SbomLastUpdated  *time.Time       `edn:"sbom/last-updated,omitempty"`
+	SbomPackageCount int              `edn:"sbom/package-count,omitempty"`
+	SbomPackages     *[]PackageEntity `edn:"sbom/packages,omitempty"`
 
-	Dependencies *skill.ManyRef `edn:"artifact/dependencies,omitempty"`
+	// Dependencies *skill.ManyRef `edn:"artifact/dependencies,omitempty"`
 }
 
 const (
@@ -423,10 +426,10 @@ const (
 type PackageEntity struct {
 	skill.Entity `entity-type:"package"`
 	Purl         string   `edn:"package/url"`
-	Type         string   `edn:"package/type"`
+	Type         string   `edn:"package/type,omitempty"`
 	Namespace    string   `edn:"package/namespace,omitempty"`
-	Name         string   `edn:"package/name"`
-	Version      string   `edn:"package/version"`
+	Name         string   `edn:"package/name,omitempty"`
+	Version      string   `edn:"package/version,omitempty"`
 	Author       string   `edn:"package/author,omitempty"`
 	Licenses     []string `edn:"package/licenses,omitempty"`
 	Description  string   `edn:"package/description,omitempty"`
