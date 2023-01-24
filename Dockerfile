@@ -13,7 +13,7 @@ RUN go mod download
 COPY . ./
 
 # RUN go test
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -trimpath
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -trimpath -o index-cli-plugin ./cmd/docker-index
 
 # runtime stage
 FROM scratch
