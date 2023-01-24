@@ -35,7 +35,7 @@ func nodePackageDetector() PackageDetector {
 	}
 	filter := func(purl string) bool {
 		pkg, _ := types.ToPackageUrl(purl)
-		return pkg.Name == "nodejs" || pkg.Name == "node"
+		return pkg.Name == "nodejs"
 	}
 	return stringsNodeDetector("node", "NODE_VERSION", expr, pkg, filter)
 }
