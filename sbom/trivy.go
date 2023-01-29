@@ -167,9 +167,8 @@ func trivySbom(cache *registry.ImageCache, lm *types.LayerMapping, resultChan ch
 					url := fmt.Sprintf(`pkg:golang/%s@%s`, lib.Name, lib.Version)
 					purl, err := types.ToPackageUrl(url)
 					if err != nil {
-						result.Status = types.Failed
-						result.Error = errors.Wrapf(err, "failed to create purl from %s", url)
-						break
+						skill.Log.Warnf("failed to create purl from %s", url)
+						continue
 					}
 					pkg := types.Package{
 						Purl: purl.String(),
@@ -194,10 +193,8 @@ func trivySbom(cache *registry.ImageCache, lm *types.LayerMapping, resultChan ch
 					url := fmt.Sprintf(`pkg:maven/%s/%s@%s`, namespace, name, lib.Version)
 					purl, err := types.ToPackageUrl(url)
 					if err != nil {
-						result.Status = types.Failed
-						result.Error = errors.Wrapf(err, "failed to create purl from %s", url)
-						resultChan <- result
-						return
+						skill.Log.Warnf("failed to create purl from %s", url)
+						continue
 					}
 					pkg := types.Package{
 						Purl: purl.String(),
