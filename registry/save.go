@@ -298,8 +298,8 @@ func SaveImage(image string, username string, password string, cli command.Cli) 
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to pull index: %s", image)
 		}
-		manifest, err := ix.IndexManifest()
-		imageRef, err := name.ParseReference(fmt.Sprintf("%s@%s", ref.Name(), manifest.Manifests[0].Digest.String()))
+		manifest, _ := ix.IndexManifest()
+		imageRef, _ := name.ParseReference(fmt.Sprintf("%s@%s", ref.Name(), manifest.Manifests[0].Digest.String()))
 		img, err = remote.Image(imageRef, WithAuth(username, password))
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to pull image: %s", image)
