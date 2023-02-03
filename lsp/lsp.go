@@ -22,8 +22,9 @@ import (
 	"io"
 
 	"github.com/anchore/syft/syft/source"
-	"github.com/docker/index-cli-plugin/sbom"
 	"github.com/pkg/errors"
+
+	"github.com/docker/index-cli-plugin/sbom"
 
 	"github.com/docker/cli/cli/command"
 	cliflags "github.com/docker/cli/cli/flags"
