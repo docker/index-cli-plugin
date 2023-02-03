@@ -32,8 +32,8 @@ func DiffImages(image1 string, image2 string, cli command.Cli, workspace string,
 	resultChan := make(chan ImageIndexResult, 2)
 	var wg sync.WaitGroup
 	wg.Add(2)
-	go indexImageAsync(&wg, image1, cli, resultChan)
-	go indexImageAsync(&wg, image2, cli, resultChan)
+	go indexImageAsync(&wg, image1, IndexOptions{Cli: cli}, resultChan)
+	go indexImageAsync(&wg, image2, IndexOptions{Cli: cli}, resultChan)
 	wg.Wait()
 	close(resultChan)
 

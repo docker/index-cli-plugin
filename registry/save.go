@@ -221,7 +221,7 @@ func (c *ImageCache) Cleanup() {
 }
 
 // SaveImage stores the v1.Image at path returned in OCI format
-func SaveImage(image string, cli command.Cli) (*ImageCache, error) {
+func SaveImage(image string, username string, password string, cli command.Cli) (*ImageCache, error) {
 	skill.Log.Infof("Requesting image %s", image)
 	ref, err := name.ParseReference(image)
 	if err != nil {
@@ -288,13 +288,22 @@ func SaveImage(image string, cli command.Cli) (*ImageCache, error) {
 		}, nil
 	}
 	// try remote image next
-	desc, err := remote.Get(ref, withAuth())
+	desc, err := remote.Get(ref, WithAuth(username, password))
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to pull image: %s", image)
 	}
 	img, err := desc.Image()
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to pull image: %s", image)
+		ix, err := remote.Index(ref, WithAuth(username, password))
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to pull index: %s", image)
+		}
+		manifest, err := ix.IndexManifest()
+		imageRef, err := name.ParseReference(fmt.Sprintf("%s@%s", ref.Name(), manifest.Manifests[0].Digest.String()))
+		img, err = remote.Image(imageRef, WithAuth(username, password))
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to pull image: %s", image)
+		}
 	}
 	var digest string
 	tags := make([]string, 0)
@@ -325,7 +334,14 @@ func SaveImage(image string, cli command.Cli) (*ImageCache, error) {
 	}, nil
 }
 
-func withAuth() remote.Option {
+func WithAuth(username string, password string) remote.Option {
+	// check passed username and password
+	if username != "" && password != "" {
+		return remote.WithAuth(&authn.Basic{
+			Username: username,
+			Password: password,
+		})
+	}
 	// check registry token env var
 	if token, ok := os.LookupEnv("ATOMIST_REGISTRY_TOKEN"); ok {
 		return remote.WithAuth(&authn.Bearer{Token: token})

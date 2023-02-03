@@ -42,14 +42,14 @@ type ImageIndexResult struct {
 	Error error
 }
 
-func indexImageAsync(wg *sync.WaitGroup, image string, cli command.Cli, resultChan chan<- ImageIndexResult) {
+func indexImageAsync(wg *sync.WaitGroup, image string, options IndexOptions, resultChan chan<- ImageIndexResult) {
 	defer wg.Done()
 	var (
 		sbom *types.Sbom
 		cves *types.VulnerabilitiesByPurls
 		err  error
 	)
-	sbom, err = IndexImage(image, cli)
+	sbom, err = IndexImage(image, options)
 	if err == nil {
 		cves, err = query.ForVulnerabilitiesInGraphQL(sbom)
 		if err == nil {
@@ -63,6 +63,13 @@ func indexImageAsync(wg *sync.WaitGroup, image string, cli command.Cli, resultCh
 	}
 }
 
+type IndexOptions struct {
+	Username string
+	Password string
+
+	Cli command.Cli
+}
+
 func IndexPath(path string, name string, cli command.Cli) (*types.Sbom, error) {
 	cache, err := registry.ReadImage(name, path)
 	if err != nil {
@@ -71,19 +78,19 @@ func IndexPath(path string, name string, cli command.Cli) (*types.Sbom, error) {
 	return indexImage(cache, cli)
 }
 
-func IndexImage(image string, cli command.Cli) (*types.Sbom, error) {
+func IndexImage(image string, options IndexOptions) (*types.Sbom, error) {
 	if strings.HasPrefix(image, "sha256:") {
-		configFilePath := cli.ConfigFile().Filename
+		configFilePath := options.Cli.ConfigFile().Filename
 		sbomFilePath := filepath.Join(filepath.Dir(configFilePath), "sbom", "sha256", image[7:], "sbom.json")
 		if sbom := cachedSbom(sbomFilePath); sbom != nil {
 			return sbom, nil
 		}
 	}
-	cache, err := registry.SaveImage(image, cli)
+	cache, err := registry.SaveImage(image, options.Username, options.Password, options.Cli)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to copy image")
 	}
-	return indexImage(cache, cli)
+	return indexImage(cache, options.Cli)
 }
 
 func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, error) {

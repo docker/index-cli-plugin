@@ -120,7 +120,7 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 			var sb *types.Sbom
 
 			if ociDir == "" {
-				sb, err = sbom.IndexImage(image, dockerCli)
+				sb, err = sbom.IndexImage(image, sbom.IndexOptions{Cli: dockerCli})
 			} else {
 				sb, err = sbom.IndexPath(ociDir, image, dockerCli)
 			}
@@ -174,7 +174,7 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 
 			var sb *types.Sbom
 			if ociDir == "" {
-				sb, err = sbom.IndexImage(image, dockerCli)
+				sb, err = sbom.IndexImage(image, sbom.IndexOptions{Cli: dockerCli})
 			} else {
 				sb, err = sbom.IndexPath(ociDir, image, dockerCli)
 			}
@@ -184,7 +184,7 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 			if !includeSbom {
 				sb.Artifacts = nil
 			}
-			return sbom.UploadSbom(sb, workspace, apiKey)
+			return sbom.Upload(sb, workspace, apiKey)
 		},
 	}
 	uploadCommandFlags := uploadCommand.Flags()
@@ -206,7 +206,7 @@ func NewRootCmd(name string, isPlugin bool, dockerCli command.Cli) *cobra.Comman
 			var sb *types.Sbom
 
 			if ociDir == "" {
-				sb, err = sbom.IndexImage(image, dockerCli)
+				sb, err = sbom.IndexImage(image, sbom.IndexOptions{Cli: dockerCli})
 			} else {
 				sb, err = sbom.IndexPath(ociDir, image, dockerCli)
 			}

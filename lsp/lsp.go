@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package sbom
+package lsp
 
 import (
 	"crypto/sha256"
@@ -22,6 +22,7 @@ import (
 	"io"
 
 	"github.com/anchore/syft/syft/source"
+	"github.com/docker/index-cli-plugin/sbom"
 	"github.com/pkg/errors"
 
 	"github.com/docker/cli/cli/command"
@@ -30,7 +31,22 @@ import (
 	"github.com/docker/index-cli-plugin/sbom/util"
 )
 
-func Send(image string, tx chan<- string) error {
+type Lsp struct {
+	username string
+	password string
+}
+
+func New() *Lsp {
+	return &Lsp{}
+}
+
+func (l *Lsp) WithAuth(username, password string) *Lsp {
+	l.username = username
+	l.password = password
+	return l
+}
+
+func (l *Lsp) Send(image string, tx chan<- string) error {
 	cmd, err := command.NewDockerCli()
 	if err != nil {
 		return errors.Wrap(err, "failed to create docker cli")
@@ -38,11 +54,15 @@ func Send(image string, tx chan<- string) error {
 	if err := cmd.Initialize(cliflags.NewClientOptions()); err != nil {
 		return errors.Wrap(err, "failed to initialize docker cli")
 	}
-	sbom, err := IndexImage(image, cmd)
+	sb, err := sbom.IndexImage(image, sbom.IndexOptions{
+		Username: l.username,
+		Password: l.password,
+		Cli:      cmd,
+	})
 	if err != nil {
 		return errors.Wrap(err, "failed to create sbom")
 	}
-	err = sendSbom(sbom, tx)
+	err = sbom.Send(sb, tx)
 	if err != nil {
 		return errors.Wrap(err, "failed to send sbom")
 	}
@@ -50,7 +70,7 @@ func Send(image string, tx chan<- string) error {
 	return nil
 }
 
-func SendFileHashes(image string, tx chan<- string) error {
+func (l *Lsp) SendFileHashes(image string, tx chan<- string) error {
 	cmd, err := command.NewDockerCli()
 	if err != nil {
 		return errors.Wrap(err, "failed to create docker cli")
@@ -58,7 +78,7 @@ func SendFileHashes(image string, tx chan<- string) error {
 	if err := cmd.Initialize(cliflags.NewClientOptions()); err != nil {
 		return errors.Wrap(err, "failed to initialize docker cli")
 	}
-	cache, err := registry.SaveImage(image, cmd)
+	cache, err := registry.SaveImage(image, l.username, l.password, cmd)
 	if err != nil {
 		return errors.Wrap(err, "failed to copy image")
 	}

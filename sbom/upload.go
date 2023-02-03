@@ -38,7 +38,7 @@ import (
 type TransactionMaker = func() skill.Transaction
 
 // UploadSbom transact an image and its data into the data plane
-func UploadSbom(sb *types.Sbom, workspace string, apikey string) error {
+func Upload(sb *types.Sbom, workspace string, apikey string) error {
 	correlationId := uuid.NewString()
 	context := skill.RequestContext{
 		Event: skill.EventIncoming{
@@ -65,7 +65,7 @@ func UploadSbom(sb *types.Sbom, workspace string, apikey string) error {
 	return nil
 }
 
-func sendSbom(sb *types.Sbom, entities chan<- string) error {
+func Send(sb *types.Sbom, entities chan<- string) error {
 	correlationId := uuid.NewString()
 	context := skill.RequestContext{
 		Event: skill.EventIncoming{

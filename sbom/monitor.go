@@ -45,7 +45,7 @@ func WatchImages(cli command.Cli) error {
 
 func indexImageWorker(cli command.Cli, indexJobs <-chan types.ImageSummary) {
 	for img := range indexJobs {
-		_, err := IndexImage(img.ID, cli)
+		_, err := IndexImage(img.ID, IndexOptions{Cli: cli})
 		if err != nil {
 			skill.Log.Warnf("Failed to index image %s", img.ID)
 			delete(imageCache, img.ID)

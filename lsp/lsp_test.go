@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package sbom
+package lsp
 
 import (
 	"testing"
@@ -24,7 +24,7 @@ func TestSend(t *testing.T) {
 	tx := make(chan string, 10)
 	transactions := make([]string, 0)
 
-	err := Send("alpine@sha256:c0d488a800e4127c334ad20d61d7bc21b4097540327217dfab52262adc02380c", tx)
+	err := New().Send("alpine@sha256:c0d488a800e4127c334ad20d61d7bc21b4097540327217dfab52262adc02380c", tx)
 	if err != nil {
 		t.Fail()
 	}
@@ -40,7 +40,7 @@ func TestSendFileHashes(t *testing.T) {
 	tx := make(chan string, 100)
 	transactions := make([]string, 0)
 
-	err := SendFileHashes("alpine@sha256:c0d488a800e4127c334ad20d61d7bc21b4097540327217dfab52262adc02380c", tx)
+	err := New().SendFileHashes("alpine@sha256:c0d488a800e4127c334ad20d61d7bc21b4097540327217dfab52262adc02380c", tx)
 	if err != nil {
 		t.Fail()
 	}
