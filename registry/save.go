@@ -26,6 +26,10 @@ import (
 
 	stereoscopeimage "github.com/anchore/stereoscope/pkg/image"
 	"github.com/anchore/syft/syft/source"
+	"github.com/atomist-skills/go-skill"
+	"github.com/docker/cli/cli/command"
+	"github.com/docker/distribution/reference"
+	"github.com/docker/index-cli-plugin/internal"
 	"github.com/dustin/go-humanize"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -37,11 +41,6 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
-
-	"github.com/atomist-skills/go-skill"
-
-	"github.com/docker/cli/cli/command"
-	"github.com/docker/index-cli-plugin/internal"
 )
 
 type ImageId struct {
@@ -265,12 +264,12 @@ func SaveImage(image string, username string, password string, cli command.Cli) 
 		var name, digest string
 		tags := make([]string, 0)
 		for _, d := range im.RepoDigests {
-			name = strings.Split(d, "@")[0]
-			digest = strings.Split(d, "@")[1]
+			name, digest = mustParseNameAndDigest(d)
 		}
 		for _, t := range im.RepoTags {
-			name = strings.Split(t, ":")[0]
-			tags = append(tags, strings.Split(t, ":")[1])
+			var tag string
+			name, tag = mustParseNameAndTag(t)
+			tags = append(tags, tag)
 		}
 
 		return &ImageCache{
@@ -355,4 +354,28 @@ func WithAuth(username string, password string) remote.Option {
 		}
 	}
 	return remote.WithAuthFromKeychain(authn.DefaultKeychain)
+}
+
+func mustParseNameAndTag(imageRef string) (string, string) {
+	parsed, err := reference.Parse(imageRef)
+	if err != nil {
+		panic("expected imageRef to be a NamedTagged reference")
+	}
+	tagged, ok := parsed.(reference.NamedTagged)
+	if !ok {
+		panic("expected imageRef to be a NamedTagged reference")
+	}
+	return tagged.Name(), tagged.Tag()
+}
+
+func mustParseNameAndDigest(imageRef string) (string, string) {
+	parsed, err := reference.Parse(imageRef)
+	if err != nil {
+		panic("expected imageRef to be a Canonical reference")
+	}
+	canonical, ok := parsed.(reference.Canonical)
+	if !ok {
+		panic("expected imageRef to be a Canonical reference")
+	}
+	return canonical.Name(), canonical.Digest().String()
 }
