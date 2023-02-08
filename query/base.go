@@ -22,7 +22,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"sort"
 	"strings"
 
@@ -34,7 +33,7 @@ import (
 	"olympos.io/encoding/edn"
 
 	"github.com/atomist-skills/go-skill"
-
+	"github.com/docker/index-cli-plugin/internal/ddhttp"
 	"github.com/docker/index-cli-plugin/types"
 )
 
@@ -94,7 +93,7 @@ func Detect(sb *types.Sbom, excludeSelf bool, workspace string, apiKey string) (
 func ForBaseImageInIndex(digest digest.Digest, workspace string, apiKey string) (*[]types.Image, error) {
 	url := fmt.Sprintf("https://api.dso.docker.com/docker-images/chain-ids/%s.json", digest.String())
 
-	resp, err := http.Get(url)
+	resp, err := ddhttp.DefaultClient().Get(url)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to query index")
 	}
@@ -243,7 +242,7 @@ func ForBaseImageInGraphQL(cfg *v1.ConfigFile) (*types.BaseImagesByDiffIdsQuery,
 	}
 
 	url := "https://api.dso.docker.com/v1/graphql"
-	client := graphql.NewClient(url, nil)
+	client := graphql.NewClient(url, ddhttp.DefaultClient())
 	variables := map[string]interface{}{
 		"diffIds": diffIds,
 	}
@@ -270,7 +269,7 @@ func ForBaseImageInGraphQL(cfg *v1.ConfigFile) (*types.BaseImagesByDiffIdsQuery,
 
 func ForImageInGraphQL(sb *types.Sbom) (*types.ImageByDigestQuery, error) {
 	url := "https://api.dso.docker.com/v1/graphql"
-	client := graphql.NewClient(url, nil)
+	client := graphql.NewClient(url, ddhttp.DefaultClient())
 	variables := map[string]interface{}{
 		"digest":       sb.Source.Image.Digest,
 		"os":           sb.Source.Image.Platform.Os,

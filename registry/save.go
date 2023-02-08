@@ -26,10 +26,6 @@ import (
 
 	stereoscopeimage "github.com/anchore/stereoscope/pkg/image"
 	"github.com/anchore/syft/syft/source"
-	"github.com/atomist-skills/go-skill"
-	"github.com/docker/cli/cli/command"
-	"github.com/docker/distribution/reference"
-	"github.com/docker/index-cli-plugin/internal"
 	"github.com/dustin/go-humanize"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -41,6 +37,12 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+
+	"github.com/atomist-skills/go-skill"
+	"github.com/docker/cli/cli/command"
+	"github.com/docker/distribution/reference"
+	"github.com/docker/index-cli-plugin/internal"
+	"github.com/docker/index-cli-plugin/internal/ddhttp"
 )
 
 type ImageId struct {
@@ -287,7 +289,7 @@ func SaveImage(image string, username string, password string, cli command.Cli) 
 		}, nil
 	}
 	// try remote image next
-	desc, err := remote.Get(ref, WithAuth(username, password))
+	desc, err := remote.Get(ref, WithAuth(username, password), remote.WithTransport(ddhttp.DefaultTransport()))
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to pull image: %s", image)
 	}
