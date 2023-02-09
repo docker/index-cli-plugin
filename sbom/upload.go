@@ -49,7 +49,7 @@ func Upload(sb *types.Sbom, workspace string, apikey string) error {
 	}
 
 	newTransaction := context.NewTransaction
-	_, err := transactSbom(sb, newTransaction)
+	err := transactSbom(sb, newTransaction)
 	if err != nil {
 		return errors.Wrap(err, "failed to transact image")
 	}
@@ -70,7 +70,7 @@ func Send(sb *types.Sbom, entities chan<- string) error {
 			entities <- entitiesString
 		})
 	}
-	_, err := transactSbom(sb, newTransaction)
+	err := transactSbom(sb, newTransaction)
 	if err != nil {
 		return errors.Wrap(err, "failed to transact image")
 	}
@@ -78,11 +78,11 @@ func Send(sb *types.Sbom, entities chan<- string) error {
 	return nil
 }
 
-func transactSbom(sb *types.Sbom, newTransaction func() skill.Transaction) (*ImageEntity, error) {
+func transactSbom(sb *types.Sbom, newTransaction func() skill.Transaction) error {
 	now := time.Now()
 	host, name, err := parseReference(sb)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to obtain host and repository")
+		return errors.Wrap(err, "failed to obtain host and repository")
 	}
 	config := (*sb).Source.Image.Config
 	manifest := (*sb).Source.Image.Manifest
@@ -176,7 +176,7 @@ func transactSbom(sb *types.Sbom, newTransaction func() skill.Transaction) (*Ima
 	// transact the image with all its metadata (repo, tags, layers, blobs, ports, env etc)
 	err = transaction.AddEntities(image, platform).Transact()
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to transact image")
+		return errors.Wrapf(err, "failed to transact image")
 	}
 
 	// transact all packages in chunks
@@ -226,22 +226,22 @@ func transactSbom(sb *types.Sbom, newTransaction func() skill.Transaction) (*Ima
 		image.Dependencies = &skill.ManyRef{Add: transaction.EntityRefs("package/dependency")}
 		err := transaction.AddEntities(image).Transact()
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to transact packages")
+			return errors.Wrapf(err, "failed to transact packages")
 		}
 	}
 
 	image = skill.MakeEntity(ImageEntity{
 		Digest:    sb.Source.Image.Digest,
 		SbomState: Indexed,
-	}, "$repo")
+	}, "$image")
 	if sb.Artifacts != nil {
 		image.SbomState = Indexed
 	}
 	err = newTransaction().Ordered().AddEntities(image).Transact()
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to transact packages")
+		return errors.Wrapf(err, "failed to transact packages")
 	}
-	return &image, nil
+	return nil
 }
 
 func digestChainIds(manifest *v1.Manifest) []digest.Digest {
