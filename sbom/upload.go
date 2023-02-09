@@ -49,18 +49,10 @@ func Upload(sb *types.Sbom, workspace string, apikey string) error {
 	}
 
 	newTransaction := context.NewTransaction
-	image, err := transactSbom(sb, newTransaction)
+	_, err := transactSbom(sb, newTransaction)
 	if err != nil {
 		return errors.Wrap(err, "failed to transact image")
 	}
-
-	imageName := ""
-	if image.Repository.Host != "hub.docker.com" {
-		imageName = image.Repository.Host + "/"
-	}
-	imageName += image.Repository.Name
-
-	skill.Log.Infof("Inspect image at https://dso.docker.com/%s/overview/images/%s/digests/%s", workspace, imageName, image.Digest)
 
 	return nil
 }
@@ -103,11 +95,12 @@ func transactSbom(sb *types.Sbom, newTransaction func() skill.Transaction) (*Ima
 	diffIds := diffIdChainIds(config)
 	digests := digestChainIds(manifest)
 
-	repository := RepositoryEntity{
+	repository := skill.MakeEntity(RepositoryEntity{
 		Host:      host,
 		Name:      name,
 		Platforms: skill.ManyRef{Add: []string{parsePlatform(sb)}},
-	}
+	}, "$repo")
+	transaction.AddEntities(repository)
 
 	layers := make([]LayerEntity, 0)
 	lc := 0
@@ -133,11 +126,11 @@ func transactSbom(sb *types.Sbom, newTransaction func() skill.Transaction) (*Ima
 		lc++
 	}
 
-	image := ImageEntity{
+	image := skill.MakeEntity(ImageEntity{
 		Digest:               sb.Source.Image.Digest,
 		CreatedAt:            &config.Created.Time,
-		Repository:           &repository,
-		Repositories:         &[]RepositoryEntity{repository},
+		Repository:           "$repo",
+		Repositories:         &skill.ManyRef{Add: []string{"$repo"}},
 		Labels:               &labels,
 		Ports:                &ports,
 		Env:                  &env,
@@ -145,7 +138,8 @@ func transactSbom(sb *types.Sbom, newTransaction func() skill.Transaction) (*Ima
 		Layers:               &layers,
 		BlobDigest:           digests[len(digests)-1].String(),
 		DiffChainId:          diffIds[len(diffIds)-1].String(),
-	}
+	}, "$image")
+
 	if sha != "" {
 		image.Sha = sha
 	}
@@ -164,16 +158,16 @@ func transactSbom(sb *types.Sbom, newTransaction func() skill.Transaction) (*Ima
 			tag := TagEntity{
 				Name:       t,
 				UpdatedAt:  config.Created.Time,
-				Repository: repository,
+				Repository: "$repo",
 				Digest:     sb.Source.Image.Digest,
-				Image:      image,
+				Image:      "$image",
 			}
 			transaction.AddEntities(tag)
 		}
 	}
 
 	platform := PlatformEntity{
-		Image:        image,
+		Image:        "",
 		Os:           sb.Source.Image.Platform.Os,
 		Architecture: sb.Source.Image.Platform.Architecture,
 		Variant:      sb.Source.Image.Platform.Variant,
@@ -190,9 +184,10 @@ func transactSbom(sb *types.Sbom, newTransaction func() skill.Transaction) (*Ima
 	for _, packages := range packageChunks {
 		transaction := newTransaction().Ordered()
 
-		image = ImageEntity{
+		image = skill.MakeEntity(ImageEntity{
 			Digest: sb.Source.Image.Digest,
-		}
+		}, "$image")
+		transaction.AddEntities(image)
 
 		for _, p := range packages {
 			files := make([]FileEntity, 0)
@@ -220,7 +215,7 @@ func transactSbom(sb *types.Sbom, newTransaction func() skill.Transaction) (*Ima
 
 			dep := DependencyEntity{
 				Scopes:  []string{"provided"},
-				Parent:  image,
+				Parent:  "$image",
 				Package: pkg,
 				Files:   files,
 			}
@@ -235,12 +230,10 @@ func transactSbom(sb *types.Sbom, newTransaction func() skill.Transaction) (*Ima
 		}
 	}
 
-	image = ImageEntity{
-		Digest:       sb.Source.Image.Digest,
-		Repository:   &repository,
-		Repositories: &[]RepositoryEntity{repository},
-		SbomState:    Indexed,
-	}
+	image = skill.MakeEntity(ImageEntity{
+		Digest:    sb.Source.Image.Digest,
+		SbomState: Indexed,
+	}, "$repo")
 	if sb.Artifacts != nil {
 		image.SbomState = Indexed
 	}
@@ -338,19 +331,19 @@ func parseReference(sb *types.Sbom) (string, string, error) {
 
 type PlatformEntity struct {
 	skill.Entity `entity-type:"docker/platform"`
-	Image        ImageEntity `edn:"docker.platform/image"`
-	Os           string      `edn:"docker.platform/os"`
-	Architecture string      `edn:"docker.platform/architecture"`
-	Variant      string      `edn:"docker.platform/variant,omitempty"`
+	Image        string `edn:"docker.platform/image"`
+	Os           string `edn:"docker.platform/os"`
+	Architecture string `edn:"docker.platform/architecture"`
+	Variant      string `edn:"docker.platform/variant,omitempty"`
 }
 
 type TagEntity struct {
 	skill.Entity `entity-type:"docker/tag"`
-	Name         string           `edn:"docker.tag/name"`
-	UpdatedAt    time.Time        `edn:"docker.tag/updated-at"`
-	Repository   RepositoryEntity `edn:"docker.tag/repository"`
-	Digest       string           `edn:"docker.tag/digest"`
-	Image        ImageEntity      `edn:"docker.tag/image"`
+	Name         string    `edn:"docker.tag/name"`
+	UpdatedAt    time.Time `edn:"docker.tag/updated-at"`
+	Repository   string    `edn:"docker.tag/repository"`
+	Digest       string    `edn:"docker.tag/digest"`
+	Image        string    `edn:"docker.tag/image"`
 }
 
 type RepositoryEntity struct {
@@ -395,8 +388,8 @@ type ImageEntity struct {
 	skill.Entity         `entity-type:"docker/image"`
 	Digest               string                       `edn:"docker.image/digest"`
 	CreatedAt            *time.Time                   `edn:"docker.image/created-at,omitempty"`
-	Repository           *RepositoryEntity            `edn:"docker.image/repository,omitempty"`
-	Repositories         *[]RepositoryEntity          `edn:"docker.image/repositories,omitempty"`
+	Repository           string                       `edn:"docker.image/repository,omitempty"`
+	Repositories         *skill.ManyRef               `edn:"docker.image/repositories,omitempty"`
 	Tags                 *skill.ManyRef               `edn:"docker.image/tags,omitempty"`
 	Labels               *[]LabelEntity               `edn:"docker.image/labels,omitempty"`
 	Ports                *[][2]string                 `edn:"docker.image/ports,omitempty"`
@@ -445,7 +438,7 @@ type FileEntity struct {
 type DependencyEntity struct {
 	skill.Entity `entity-type:"package/dependency"`
 	Scopes       []string      `edn:"package.dependency/scopes"`
-	Parent       ImageEntity   `edn:"package.dependency/parent"`
+	Parent       string        `edn:"package.dependency/parent"`
 	Package      PackageEntity `edn:"package.dependency/package"`
 	Files        []FileEntity  `edn:"package.dependency/files"`
 }
