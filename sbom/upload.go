@@ -167,7 +167,7 @@ func transactSbom(sb *types.Sbom, newTransaction func() skill.Transaction) error
 	}
 
 	platform := PlatformEntity{
-		Image:        "",
+		Image:        "$image",
 		Os:           sb.Source.Image.Platform.Os,
 		Architecture: sb.Source.Image.Platform.Architecture,
 		Variant:      sb.Source.Image.Platform.Variant,
