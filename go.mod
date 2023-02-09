@@ -3,6 +3,7 @@ module github.com/docker/index-cli-plugin
 go 1.19
 
 require (
+	github.com/Microsoft/go-winio v0.5.2
 	github.com/anchore/packageurl-go v0.1.1-0.20220428202044-a072fa3cb6d7
 	github.com/anchore/stereoscope v0.0.0-20221006201143-d24c9d626b33
 	github.com/anchore/syft v0.62.1
@@ -46,7 +47,6 @@ require (
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.1.1 // indirect
 	github.com/Masterminds/sprig/v3 v3.2.2 // indirect
-	github.com/Microsoft/go-winio v0.5.2 // indirect
 	github.com/Microsoft/hcsshim v0.9.5 // indirect
 	github.com/ProtonMail/go-crypto v0.0.0-20220824120805-4b6e5c587895 // indirect
 	github.com/acobaugh/osrelease v0.1.0 // indirect

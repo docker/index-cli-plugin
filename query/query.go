@@ -24,14 +24,13 @@ import (
 	"strings"
 
 	"github.com/hasura/go-graphql-client"
-
-	"github.com/docker/index-cli-plugin/internal"
-	"github.com/docker/index-cli-plugin/types"
-
 	"github.com/pkg/errors"
 	"olympos.io/encoding/edn"
 
 	"github.com/atomist-skills/go-skill"
+	"github.com/docker/index-cli-plugin/internal"
+	"github.com/docker/index-cli-plugin/internal/ddhttp"
+	"github.com/docker/index-cli-plugin/types"
 )
 
 type CveResult struct {
@@ -115,7 +114,7 @@ func query(query string, name string, workspace string, apiKey string) (*http.Re
 	}
 	query = fmt.Sprintf(`{:queries [{:name "query" :query %s}]}`, query)
 	skill.Log.Debugf("Query %s", query)
-	client := &http.Client{}
+	client := ddhttp.DefaultClient()
 	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(query))
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create http request")
@@ -139,7 +138,7 @@ func query(query string, name string, workspace string, apiKey string) (*http.Re
 
 func ForVulnerabilitiesInGraphQL(sb *types.Sbom) (*types.VulnerabilitiesByPurls, error) {
 	url := "https://api.dso.docker.com/v1/graphql"
-	client := graphql.NewClient(url, nil)
+	client := graphql.NewClient(url, ddhttp.DefaultClient())
 
 	purls := make([]string, 0)
 	for _, p := range sb.Artifacts {
