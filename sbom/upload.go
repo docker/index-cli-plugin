@@ -187,7 +187,6 @@ func transactSbom(sb *types.Sbom, newTransaction func() skill.Transaction) error
 		image = skill.MakeEntity(ImageEntity{
 			Digest: sb.Source.Image.Digest,
 		}, "$image")
-		transaction.AddEntities(image)
 
 		for _, p := range packages {
 			files := make([]FileEntity, 0)
