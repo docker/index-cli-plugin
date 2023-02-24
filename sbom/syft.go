@@ -289,8 +289,15 @@ func toPackage(p pkg2.Package, rels []artifact.Relationship, qualifiers map[stri
 		}
 	}
 
-	// bring qualifiers into form we understand
 	purl, _ := packageurl.FromString(pkg.Purl)
+
+	// temp hack to fix up alpine packages
+	if purl.Type == "apk" {
+		purl.Type = "alpine"
+		purl.Namespace = ""
+	}
+
+	// bring qualifiers into form we understand
 	if purl.Type == "deb" || purl.Type == "rpm" || purl.Type == "alpine" {
 		purl.Qualifiers = packageurl.QualifiersFromMap(qualifiers)
 	}
