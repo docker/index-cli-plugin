@@ -22,7 +22,6 @@ import (
 	"strings"
 
 	"github.com/anchore/packageurl-go"
-
 	"github.com/atomist-skills/go-skill"
 )
 
@@ -201,6 +200,39 @@ func MergePackages(results ...IndexResult) []Package {
 		return packages[i].Purl < packages[j].Purl
 	})
 	return packages
+}
+
+func FilterGenericPackages(packages []Package) []Package {
+	pkgs := make([]Package, 0)
+	genericPkgs := make([]Package, 0)
+	for _, pkg := range packages {
+		if pkg.Type != "generic" {
+			pkgs = append(pkgs, pkg)
+		} else {
+			genericPkgs = append(genericPkgs, pkg)
+		}
+	}
+	for _, pkg := range genericPkgs {
+		found := false
+		for _, loc := range pkg.Locations {
+			for _, p := range pkgs {
+				if containsLocation(p.Locations, loc.Path) || containsLocation(p.Files, loc.Path) {
+					found = true
+				}
+			}
+		}
+		for _, loc := range pkg.Files {
+			for _, p := range pkgs {
+				if containsLocation(p.Locations, loc.Path) || containsLocation(p.Files, loc.Path) {
+					found = true
+				}
+			}
+		}
+		if !found {
+			pkgs = append(pkgs, pkg)
+		}
+	}
+	return pkgs
 }
 
 func containsPackage(packages *[]Package, pkg Package) (int, bool) {

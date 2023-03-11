@@ -1,5 +1,5 @@
 # build stage
-FROM golang:1.19-alpine3.16@sha256:0eb08c89ab1b0c638a9fe2780f7ae3ab18f6ecda2c76b908e09eb8073912045d as build
+FROM golang:1.20-alpine3.17 as build
 
 RUN apk add --no-cache git build-base ca-certificates
 

@@ -81,7 +81,7 @@ func IndexPath(path string, name string, cli command.Cli) (*types.Sbom, error) {
 func IndexImage(image string, options IndexOptions) (*types.Sbom, error) {
 	if strings.HasPrefix(image, "sha256:") {
 		configFilePath := options.Cli.ConfigFile().Filename
-		sbomFilePath := filepath.Join(filepath.Dir(configFilePath), "sbom", "sha256", image[7:], "sbom.json")
+		sbomFilePath := filepath.Join(filepath.Dir(configFilePath), "scout", "sbom", "sha256", image[7:], "sbom.json")
 		if sbom := cachedSbom(sbomFilePath); sbom != nil {
 			return sbom, nil
 		}
@@ -95,7 +95,7 @@ func IndexImage(image string, options IndexOptions) (*types.Sbom, error) {
 
 func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, error) {
 	configFilePath := cli.ConfigFile().Filename
-	sbomFilePath := filepath.Join(filepath.Dir(configFilePath), "sbom", "sha256", cache.Id[7:], "sbom.json")
+	sbomFilePath := filepath.Join(filepath.Dir(configFilePath), "scout", "sbom", "sha256", cache.Id[7:], "sbom.json")
 	if sbom := cachedSbom(sbomFilePath); sbom != nil {
 		return sbom, nil
 	}
@@ -136,7 +136,7 @@ func indexImage(cache *registry.ImageCache, cli command.Cli) (*types.Sbom, error
 		return nil, errors.Wrapf(err, "failed to normalize packages: %s", cache.Name)
 	}
 
-	packages := types.MergePackages(syftResult, trivyResult)
+	packages := types.FilterGenericPackages(types.MergePackages(syftResult, trivyResult))
 
 	s.Stop()
 	skill.Log.Infof(`Indexed %d packages`, len(packages))

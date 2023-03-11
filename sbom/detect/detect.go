@@ -34,7 +34,7 @@ type PackageDetector = func(packages []types.Package, image *source.Source, lm *
 var detectors []PackageDetector
 
 func init() {
-	detectors = []PackageDetector{nodePackageDetector()}
+	detectors = []PackageDetector{}
 }
 
 func AdditionalPackages(packages []types.Package, image *source.Source, lm *types.LayerMapping) []types.Package {
