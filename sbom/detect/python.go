@@ -23,7 +23,7 @@ import (
 )
 
 func pythonPackageDetector() PackageDetector {
-	expr := regexp.MustCompile("libpython(.*)\\.so\\.")
+	expr := regexp.MustCompile(`libpython(.*)\.so\.`)
 	pkg := types.Package{
 		Type:        "github",
 		Namespace:   "python",
