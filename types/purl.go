@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/anchore/packageurl-go"
+
 	"github.com/atomist-skills/go-skill"
 )
 
