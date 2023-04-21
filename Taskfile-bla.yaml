@@ -1,0 +1,66 @@
+version: '3'
+
+vars:
+  IMAGE_NAME: docker/docker-scout:local
+
+tasks:
+  go:test:
+    cmds:
+      - go test -race -cover ./...
+
+  go:build:
+    cmds:
+      - go build -o dist/docker-scout -ldflags="-w -s -X 'github.com/docker/scout-cli-plugin/internal.version={{.VERSION}}'" ./cmd/docker-scout
+    env:
+      CGO_ENABLED: 0
+    vars:
+      VERSION:
+        sh: git describe --tags | cut -c 2-
+
+  go:install:
+    deps: [go:build]
+    cmds:
+      - mkdir -p ~/.docker/cli-plugins
+      - install dist/docker-scout ~/.docker/cli-plugins/docker-scout
+
+  go:mocks:
+    cmds:
+      - docker run --rm -v $(pwd):/app -v $(go env GOPATH)/pkg:/go/pkg -v $(go env GOCACHE):/cache/go -e GOCACHE=/cache/go -v $(pwd):/src -w /src vektra/mockery:v2.20 --keeptree -r --all
+
+  go:fmt:
+    cmds:
+      - goimports -w -local github.com/docker,github.com/docker/scout-cli-plugin .
+      - gofmt -w .
+
+  go:checkmodules:
+    cmds:
+      - go mod verify
+      - go mod download
+
+  go:lint:
+    cmds:
+      - docker run --rm -v $(pwd):/app -v $(go env GOPATH)/pkg:/go/pkg -v $(go env GOCACHE):/cache/go -e GOCACHE=/cache/go -e GOLANGCI_LINT_CACHE=/cache/go -w /app golangci/golangci-lint:v1.50.1 golangci-lint run -v --timeout 5m
+
+  go:release:
+    cmds:
+      - goreleaser release --clean
+
+  go:snapshot:
+    cmds:
+      - goreleaser release --snapshot --clean
+
+  go:gendocs:
+    cmds:
+      - go run ./cmd/gen-docs --formats md,yaml
+
+  docker:build:
+    cmds:
+      - docker buildx build . --ssh default -f Dockerfile -t {{.IMAGE_NAME}} --load
+
+  docker:build:all:
+    cmds:
+      - docker buildx build . --ssh default -f Dockerfile -t {{.IMAGE_NAME}} --platform=linux/amd64,linux/arm64
+
+  ci:install:
+    cmds:
+      - go install golang.org/x/tools/cmd/goimports@latest
