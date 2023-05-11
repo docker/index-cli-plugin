@@ -11,7 +11,7 @@ require (
 	github.com/atomist-skills/go-skill v0.0.6-0.20221221214636-a7de163fd901
 	github.com/briandowns/spinner v1.12.0
 	github.com/docker/cli v20.10.21+incompatible
-	github.com/docker/distribution v2.8.1+incompatible
+	github.com/docker/distribution v2.8.2+incompatible
 	github.com/docker/docker v23.0.1+incompatible
 	github.com/dustin/go-humanize v1.0.1
 	github.com/google/go-containerregistry v0.13.0
