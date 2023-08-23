@@ -17,7 +17,6 @@
 package registry
 
 import (
-	stereoscopeimage "github.com/anchore/stereoscope/pkg/image"
 	"github.com/anchore/syft/syft/source"
 	"github.com/google/go-containerregistry/pkg/v1/layout"
 	"github.com/pkg/errors"
@@ -39,15 +38,15 @@ func ReadImage(name string, path string) (*ImageCache, error) {
 	img, _ := index.Image(hash)
 
 	skill.Log.Debugf("Parsing image")
-	input := source.Input{
-		Scheme:      source.ImageScheme,
-		ImageSource: stereoscopeimage.OciDirectorySource,
-		Location:    path,
-	}
-	src, cleanup, err := source.New(input, nil, nil)
+	detection, err := source.Detect(path, source.DefaultDetectConfig())
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create new source")
+		return nil, errors.Wrapf(err, "failed to detect image")
 	}
+	src, err := detection.NewSource(source.DefaultDetectionSourceConfig())
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to create new image source")
+	}
+
 	skill.Log.Debugf("Parse image")
 	skill.Log.Infof("Loaded image")
 
@@ -57,11 +56,10 @@ func ReadImage(name string, path string) (*ImageCache, error) {
 		Tags:      []string{},
 		Name:      name,
 		Image:     &img,
-		Source:    src,
+		Source:    &src,
 		ImagePath: path,
 		Ref:       nil,
 
-		copy:          false,
-		sourceCleanup: cleanup,
+		copy: false,
 	}, nil
 }

@@ -24,7 +24,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	stereoscopeimage "github.com/anchore/stereoscope/pkg/image"
 	"github.com/anchore/syft/syft/source"
 	"github.com/dustin/go-humanize"
 	"github.com/google/go-containerregistry/pkg/authn"
@@ -91,7 +90,6 @@ func (c *ImageCache) StoreImage() error {
 		return nil
 	}
 	skill.Log.Debugf("Copying image to %s", c.ImagePath)
-	var imageSource stereoscopeimage.Source
 
 	if format := os.Getenv("ATOMIST_CACHE_FORMAT"); format == "" || format == "oci" {
 		spinner := internal.StartSpinner("info", "Copying image", c.cli.Out().IsTerminal())
@@ -106,8 +104,6 @@ func (c *ImageCache) StoreImage() error {
 		if err = p.AppendImage(*c.Image); err != nil {
 			return err
 		}
-
-		imageSource = stereoscopeimage.OciDirectorySource
 
 		spinner.Stop()
 	} else if format == "tar" {
@@ -185,22 +181,18 @@ func (c *ImageCache) StoreImage() error {
 			}
 			spinner.Stop()
 		}
-
-		imageSource = stereoscopeimage.DockerTarballSource
 	}
 
 	skill.Log.Debugf("Parsing image")
-	input := source.Input{
-		Scheme:      source.ImageScheme,
-		ImageSource: imageSource,
-		Location:    c.ImagePath,
-	}
-	src, cleanup, err := source.New(input, nil, nil)
+	detection, err := source.Detect(c.ImagePath, source.DefaultDetectConfig())
 	if err != nil {
-		return errors.Wrap(err, "failed to create new image source")
+		return errors.Wrapf(err, "failed to detect image")
 	}
-	c.Source = src
-	c.sourceCleanup = cleanup
+	src, err := detection.NewSource(source.DefaultDetectionSourceConfig())
+	if err != nil {
+		return errors.Wrapf(err, "failed to create new image source")
+	}
+	c.Source = &src
 
 	skill.Log.Debugf("Parsed image")
 	skill.Log.Infof("Copied image")
